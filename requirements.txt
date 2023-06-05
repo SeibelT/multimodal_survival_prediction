@@ -1,0 +1,10 @@
+numpy
+pandas
+matplotlib
+seaborn
+scipy
+torch
+torchvision
+torchaudio
+h5py
+wandb
