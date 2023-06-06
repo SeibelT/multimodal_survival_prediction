@@ -4,16 +4,20 @@ import numpy as np
 from torch.utils.data import DataLoader
 from utils import survival_loss
 import os
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+from sksurv.metrics import concordance_index_censored
+from sklearn.metrics import roc_auc_score
+from torchmetrics import Accuracy
+from torch import nn 
 
 
-def simple_trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha):
+def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,storepath):
     model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(),lr=lr,)
+    optimizer = torch.optim.Adam(model.parameters(),lr=lr,betas=[0.9,0.999],weight_decay=1e-5,)
 
     model_name = model.__class__.__name__
     optimizer_name = optimizer.__class__.__name__
-    run_name = f'{model_name}-lr{lr}'
+    run_name = f'{model_name}-lr{lr}-fold{fold}'
+    accuracy = Accuracy(task="multiclass", num_classes=4)
 
     with wandb.init(project='Multimodal', name=run_name, entity='tobias-seibel') as run:
         
@@ -21,11 +25,7 @@ def simple_trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha):
         run.config.learning_rate = lr
         run.config.optimizer = optimizer.__class__.__name__
         run.watch(model)
-        
-        
-
-
-
+    
         for epoch in range(epochs):
             model.train()
             
@@ -36,16 +36,22 @@ def simple_trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha):
                 l.to(device)
                 out = model(histo,gen)
                 
-                loss = survival_loss(out,c,l,alpha)
+                loss = survival_loss(out,c,l,alpha)  # TODO add loss regularization 
                 loss.backward() 
                 optimizer.step()
-                run.log({'loss': loss.item()},commit=True)
                 
-                
-                
-        
-                        
-            
+                with torch.no_grad():
+                    #risk
+                    h = nn.Sigmoid()(out)
+                    S = torch.cumprod(1-h,dim = -1)
+                    risk = 1-S.sum(dim=1)
+                    c_index = concordance_index_censored(1-c,l,risk).item()
+                    run.log({'loss': loss.item(),"accuracy": accuracy(out,l).item(),"c-index" : c_index},commit=False)
+                    if idx%20==0:  # TODO still hardcoded
+                        run.log()
+
+                del h,S,risk,c_index
+                    
             model.eval()
             with torch.no_grad():
                 for  idx,(histo,gen,c,l) in enumerate(testloader):
@@ -54,8 +60,32 @@ def simple_trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha):
                     c.to(device)
                     l.to(device)
                     out = model(histo,gen)
-                    accuracy = ... # TODO 
+                    
                     loss = survival_loss(out,c,l,alpha)
-                    run.log({'loss': loss.item()},commit=True)
-                    run.log({'accuracy': accuracy, 'epoch': idx})    
-        
+
+                    
+                    h = nn.Sigmoid()(out)
+                    S = torch.cumprod(1-h,dim = -1)
+                    risk = 1-S.sum(dim=1)
+                    c_index = concordance_index_censored(1-c,l,risk).item()
+                    run.log({'val_loss': loss.item(),"val_accuracy": accuracy(out,l).item(),"val_c-index" : c_index},commit=True)
+            
+            
+            #if epoch%10 and epoch!=0:
+            #    store_checkpoint(epoch,model,optimizer,storepath,run_name)  
+    
+    # Store models with fold name  
+    torch.save({
+                'model': model.state_dict(),
+                },
+                os.path.join(storepath, f"{run_name}.pth"))
+    
+
+
+def store_checkpoint(epoch,model,optimizer,storepath,run_name):
+    torch.save({
+                'epoch': epoch,
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                },
+                os.path.join(storepath, f"{run_name}_{epoch}.pth"))

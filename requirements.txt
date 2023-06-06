@@ -6,5 +6,7 @@ scipy
 torch
 torchvision
 torchaudio
+torchmetrics
 h5py
 wandb
+scikit-survival
