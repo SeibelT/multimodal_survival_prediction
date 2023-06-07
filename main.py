@@ -1,5 +1,5 @@
 import sys
-from utils import survival_loss, prepare_csv
+from utils import  prepare_csv
 from models import Porpoise
 from multi_modal_ds import HistGen_Dataset
 import pandas as pd
@@ -8,22 +8,22 @@ from trainer import MM_Trainer
 
 
 def MM_train_func():
-    f = "/home/tose002f/thesis/test1/tcga_brca_trainable.csv"
+    f = "/nodes/bevog/work4/seibel/data/tcga_brca_trainable.csv"
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    data_path = "/projects/p_scads_pathology/MultiModal/TCGA-BRCA-DX-features/xiyue-wang" # folderpath for h5y fiels which contain the WSI feat vecs 
+    data_path = "/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/xiyue-wang" # folderpath for h5y fiels which contain the WSI feat vecs 
     batchsize = 1  # due to different size of bags 
-    epochs = 3  # 20 in paper 
-    df = pd.csv_read(f)
+    epochs = 10  # 20 in paper 
+    df = pd.read_csv(f)
     learningrate = 2e-4
     alpha = 0.3 # TODO find real value!!!
     folds = 5
-    storing_path = "/home/tose002f/thesis/test1/"  # Where to store the model/ TODO checkpoints
-    train_ds = HistGen_Dataset(df,datapath = data_path,train=True)
-    test_ds = HistGen_Dataset(df,datapath = data_path,train=False)
+    storing_path = "/nodes/bevog/work4/seibel/results/test1"  # Where to store the model/ TODO checkpoints
+    train_ds = HistGen_Dataset(df,data_path = data_path,train=True)
+    test_ds = HistGen_Dataset(df,data_path = data_path,train=False)
     d_hist = 2048
     d_gen = train_ds.gen_depth()
     d_gen_out = 32
-    model = Porpoise(d_hist,d_gen,d_gen_out)  # Get settings 
+    model = Porpoise(d_hist,d_gen,d_gen_out,device=device)  # Get settings 
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
     test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)
     

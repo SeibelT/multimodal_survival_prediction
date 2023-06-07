@@ -14,9 +14,13 @@ class AttMil(nn.Module):
     def __init__(self,d : int):
         super(AttMil,self).__init__()
         self.lin1 = nn.Linear(d,d//2,bias = True)
+        torch.nn.init.xavier_normal_(self.lin1.weight)
         self.lin2 = nn.Linear(d//2,d//4,bias=False)
+        torch.nn.init.xavier_normal_(self.lin2.weight)
         self.lin3 = nn.Linear(d//2,d//4,bias=False)
+        torch.nn.init.xavier_uniform_(self.lin3.weight)
         self.lin4 = nn.Linear(d//4,1,bias=False)
+        torch.nn.init.xavier_normal_(self.lin4.weight)
         self.tanh = nn.Tanh()
         self.sigm = nn.Sigmoid()
         self.sm = nn.Softmax(dim = 1)
@@ -41,14 +45,19 @@ class SNN(nn.Module):
     """
     def __init__(self,d : int,d_out : int = 32):
         super(SNN,self).__init__()
-
+        
+        
         self.lin1 = nn.Linear(d,256)
+        torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
+
         self.lin2 = nn.Linear(256,256)
+        torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
         self.selu1 = nn.SELU()
         self.selu2 = nn.SELU()
         self.alphadropout1 = nn.AlphaDropout(p=0.5)
         self.alphadropout2 = nn.AlphaDropout(p=0.5)
         self.fc = nn.Linear(256,d_out)
+        torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
         self.selu3 = nn.SELU()
 
     def forward(self,x):
@@ -70,11 +79,28 @@ class Gated_Fusion(nn.Module):
     dims : list of dimensions for each modality
     modalities : list of trainable feature embeddings from each modality
     """
-    def __init__(self,n_mods: int ,dims: list[int] ):
+    def __init__(self,n_mods: int ,dims,device ):
         super(Gated_Fusion,self).__init__()
         self.n_mods = n_mods
         self.dims = dims
+        self.device=device
+        #H emb
+        lin1h = nn.Linear(dims[0],dims[0])
+        lin2h = nn.Linear(dims[1],dims[1])
+        torch.nn.init.kaiming_normal_(lin1h.weight)
+        torch.nn.init.kaiming_normal_(lin1h.weight)
+        self.h_emb1 = nn.Sequential(lin1h,nn.ReLU())
+        self.h_emb2 = nn.Sequential(lin2h,nn.ReLU())
 
+
+        #Z emb
+        lin_1z = nn.Linear(sum(dims),dims[0])
+        lin_2z = nn.Linear(sum(dims),dims[1])
+        torch.nn.init.xavier_normal_(lin_1z.weight)
+        torch.nn.init.xavier_normal_(lin_2z.weight)
+        self.z_emb1 = nn.Sequential(lin_1z,nn.Sigmoid())
+        self.z_emb2 = nn.Sequential(lin_2z,nn.Sigmoid())
+        """
         self.h_emb_list = nn.ModuleList([])
         self.z_emb_list = nn.ModuleList([])
         for m in range(n_mods):
@@ -82,22 +108,23 @@ class Gated_Fusion(nn.Module):
             z_emb = nn.Sequential(nn.Linear(sum(dims),dims[m]),nn.Sigmoid()) #m-th embedding of  all modalities in z_m. Must have the same dimensions as h_m for element-wise multiplication.
             self.h_emb_list.append(h_emb)
             self.z_emb_list.append(z_emb)
+        """
 
-    def forward(self,modalities: list[torch.Tensor] ):
+    def forward(self,mod1,mod2 ):
         #first modality 
-        h_1 =  self.h_emb_list[0](modalities[0]) # Projection of first modalitiy 
-        z_1 = self.z_emb_list[0](torch.cat(modalities,dim=1))  # concatenation and projection of all modalities concatenated 
+        h_1 =  self.h_emb1(mod1) # Projection of first modalitiy 
+        z_1 = self.z_emb1(torch.cat((mod1,mod2),dim=1))  # concatenation and projection of all modalities concatenated 
         h_1_gated = h_1*z_1  # Attention
         
         # Same for second modality 
-        h_2 =  self.h_emb_list[1](modalities[1]) 
-        z_2 = self.z_emb_list[1](torch.cat(modalities,dim=1))
+        h_2 =  self.h_emb2(mod2) 
+        z_2 = self.z_emb2(torch.cat((mod1,mod2),dim=1))
         h_2_gated = h_2*z_2
 
-        return self.Fusion(h_1_gated,h_2_gated)
+        return self.Fusion(h_1_gated,h_2_gated,self.device)
     
 
-    def Fusion(self,v1,v2):
+    def Fusion(self,v1,v2,device):
         """ 
         Implementation of Ungated Fusion for two modalities as described in 'Pan-cancer integrative histology-genomic analysis via multimodal deep learning' by R.Chen et al 
         https://pubmed.ncbi.nlm.nih.gov/35944502/ 
@@ -105,7 +132,7 @@ class Gated_Fusion(nn.Module):
         """
         assert v1.size(0) == v2.size(0)
         B = v1.size(0)
-        p = torch.ones((B,1)) 
+        p = torch.ones((B,1),device=device) 
         v1 = torch.cat((v1,p),dim=-1) # add one values 
         v2 = torch.cat((v2,p),dim=-1) # add one values 
         
@@ -116,8 +143,10 @@ class Classifier_Head(nn.Module):
         super(Classifier_Head,self).__init__()
 
         self.linear1 = nn.Linear(outsize,d_hidden)
+        torch.nn.init.kaiming_normal_(self.linear1.weight)
         self.activ1 = nn.ReLU()
         self.linear2  = nn.Linear(d_hidden,t_bins)
+        torch.nn.init.kaiming_normal_(self.linear2.weight)
         self.activ2 = nn.ReLU()
     def forward(self,x):
         x = torch.flatten(x,start_dim=1)
@@ -130,19 +159,20 @@ class Porpoise(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,d_gen,d_gen_out):
+    def __init__(self,d_hist,d_gen,d_gen_out,device):
         super(Porpoise,self).__init__()
         dims = [d_hist//2,d_gen_out]   # output dimension of d_hist is given due to structure of implemented AttMIL
         flat_fusion_tensor = (d_hist//2+1) * (d_gen_out+1)
         self.Attn_Mil = AttMil(d=d_hist)
         self.SNN = SNN(d =d_gen ,d_out = d_gen_out)
-        self.Gated_Fusion = Gated_Fusion(n_mods = 2,dims=dims)
+        self.Gated_Fusion = Gated_Fusion(n_mods = 2,dims=dims,device=device)
         self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=256,t_bins=4)
 
     def forward(self,hist,gen):
+
         hist = self.Attn_Mil(hist)
         gen = self.SNN(gen)
 
-        out = self.Gated_Fusion([hist,gen])
+        out = self.Gated_Fusion(hist,gen)
 
         return self.Classifier_Head(out)
