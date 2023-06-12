@@ -78,14 +78,14 @@ class Survival_Loss(nn.Module):
         #masking by censored or uncensored 
         # L_z(h,S) -> h,S_bar only uncensored,
         # while  L_censored(S) only censored 
-        c = c.type(torch.BoolTensor)
-        logh = logh.masked_select(torch.logical_not(c))
-        logS_bar = logS_bar.masked_select(torch.logical_not(c))
-        logS = logS.masked_select(c)
+        
+        logh = logh*(1-c)
+        logS_bar = logS_bar*(1-c)
+        logS = logS*c
 
-
-        L_z = -torch.sum(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
-        L_censored = -torch.sum(logS) # only censored S 
+        # TODO change to sum 
+        L_z = -torch.mean(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
+        L_censored = -torch.mean(logS) # only censored S 
         
         
         return L_z + (1-self.alpha)*L_censored

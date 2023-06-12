@@ -130,7 +130,7 @@ class Gated_Fusion(nn.Module):
         https://pubmed.ncbi.nlm.nih.gov/35944502/ 
         No trainable variables, outputs the kronecker product of two vectors. Ones are appended before the kronecker product
         """
-        assert v1.size(0) == v2.size(0)
+        
         B = v1.size(0)
         p = torch.ones((B,1),device=device) 
         v1 = torch.cat((v1,p),dim=-1) # add one values 
@@ -145,14 +145,15 @@ class Classifier_Head(nn.Module):
         self.linear1 = nn.Linear(outsize,d_hidden)
         torch.nn.init.kaiming_normal_(self.linear1.weight)
         self.activ1 = nn.ReLU()
-        self.linear2  = nn.Linear(d_hidden,t_bins)
+        self.linear2  = nn.Linear(d_hidden,d_hidden)
         torch.nn.init.kaiming_normal_(self.linear2.weight)
         self.activ2 = nn.ReLU()
+        self.fc = nn.Linear(d_hidden,t_bins) # TODO test add layer
     def forward(self,x):
         x = torch.flatten(x,start_dim=1)
         x = self.activ1(self.linear1(x))
         x = self.activ2(self.linear2(x))
-        return x
+        return self.fc(x)
     
 
 class Porpoise(nn.Module):

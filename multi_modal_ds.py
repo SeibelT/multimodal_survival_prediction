@@ -37,8 +37,8 @@ class HistGen_Dataset(Dataset):
         tensor_path =os.path.join(self.data_path, self.df.iloc[idx, 0].replace(".svs",".h5")) 
         tensor_file =h5py.File(tensor_path, "r")
         tensor_file = torch.tensor(tensor_file["feats"][:]).to(torch.float32)
-        label = torch.tensor(self.df.iloc[idx, 1])
-        censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int16)
+        label = torch.tensor(self.df.iloc[idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int64)
 
         return tensor_file, self.genomics_tensor[idx], censorship,  label
 
