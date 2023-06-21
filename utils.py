@@ -3,39 +3,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import torch
 from torch import nn 
-
-
-
-def prepare_csv(df_path,k,n_bins=4,savename = None):
-    #clusters data into k folds stratified by patients,
-    #bins survivaltime and , normalizes/transforms gen features into tensor  
-    #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
-    df = pd.read_csv(df_path,compression='zip')
-
-    # get time bins 
-    df_uncensored = (df[df["censorship"]==0]).drop_duplicates(["case_id"])
-    _,bins = pd.qcut(df_uncensored['survival_months'],q = n_bins,retbins=True)  # distribute censored survival months into quartiles
-
-    # adapt time bins 
-    bins[0] = 0 
-    bins[-1] = np.inf
-    # bin name = index 
-    labels = [i for i in range(n_bins)]
-    df.insert(6,"survival_months_discretized",  pd.cut(df["survival_months"],
-                                                               bins=bins, 
-                                                               labels=labels)) # insert binned survival month 
-    df.insert(3,"kfold",df.index%k) # insert kfold 
-
-    genomics = df[df.keys()[11:]]
-
-    scaler = StandardScaler()
-    scaled_genomics = scaler.fit_transform(genomics)
-    df[df.keys()[11:]] = scaled_genomics
-
-    if savename is not None:
-        df.to_csv(savename,index=False)
-    return df 
-
+from sksurv.metrics import concordance_index_censored,cumulative_dynamic_auc
 
 
 class Survival_Loss(nn.Module):
@@ -83,9 +51,64 @@ class Survival_Loss(nn.Module):
         logS_bar = logS_bar*(1-c)
         logS = logS*c
 
-        # TODO change to sum 
+        
         L_z = -torch.mean(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
         L_censored = -torch.mean(logS) # only censored S 
         
         
         return L_z + (1-self.alpha)*L_censored
+
+def c_index(out_all,c_all,l_all): # TODO to utils 
+    """
+    Variables
+    out_all : FloatTensor must be of shape = (N,4)  predicted logits of model 
+    c_all : IntTensor must be of shape = (N,) 
+    l_all IntTensor must be of shape = (N,)
+
+    Outputs the c-index score 
+    """
+    with torch.no_grad():  # TODO c-index not working yet 
+        #risk
+        h = nn.Sigmoid()(out_all)
+        S = torch.cumprod(1-h,dim = -1)
+        risk = -S.sum(dim=1) ## TODO why is it not 1-S ???
+        notc = (1-c_all).numpy().astype(bool)
+        try:
+            c_index = concordance_index_censored(notc,l_all.cpu(),risk)
+            #print(c_index)
+        except:
+            print("C index problems")
+        return c_index[0]
+    
+
+
+
+def prepare_csv(df_path,k,n_bins=4,savename = None):
+    #clusters data into k folds stratified by patients,
+    #bins survivaltime and , normalizes/transforms gen features into tensor  
+    #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
+    df = pd.read_csv(df_path,compression='zip')
+
+    # get time bins 
+    df_uncensored = (df[df["censorship"]==0]).drop_duplicates(["case_id"])
+    _,bins = pd.qcut(df_uncensored['survival_months'],q = n_bins,retbins=True)  # distribute censored survival months into quartiles
+
+    # adapt time bins 
+    bins[0] = 0 
+    bins[-1] = np.inf
+    # bin name = index 
+    labels = [i for i in range(n_bins)]
+    df.insert(6,"survival_months_discretized",  pd.cut(df["survival_months"],
+                                                               bins=bins, 
+                                                               labels=labels)) # insert binned survival month 
+    df.insert(3,"kfold",df.index%k) # insert kfold 
+
+    genomics = df[df.keys()[11:]]
+
+    scaler = StandardScaler()
+    scaled_genomics = scaler.fit_transform(genomics)
+    df[df.keys()[11:]] = scaled_genomics
+
+    if savename is not None:
+        df.to_csv(savename,index=False)
+    return df 

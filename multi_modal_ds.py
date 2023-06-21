@@ -21,7 +21,7 @@ class HistGen_Dataset(Dataset):
         
         self.genomics_tensor = torch.Tensor(self.df[self.df.keys()[11:]].to_numpy()).to(torch.float32)
         
-        self.df = self.df[["slide_id","survival_months_discretized","censorship"]]
+        self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
 
 
     def __len__(self):
@@ -39,7 +39,7 @@ class HistGen_Dataset(Dataset):
         tensor_file = torch.tensor(tensor_file["feats"][:]).to(torch.float32)
         label = torch.tensor(self.df.iloc[idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int64)
-
-        return tensor_file, self.genomics_tensor[idx], censorship,  label
+        label_cont = torch.tensor(self.df.iloc[idx,3]).type(torch.int64)
+        return tensor_file, self.genomics_tensor[idx], censorship,  label,label_cont
 
         
