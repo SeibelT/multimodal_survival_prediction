@@ -186,10 +186,10 @@ class AttMil_Survival(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,device):
+    def __init__(self,d_hist,bins,device):
         super(AttMil_Survival,self).__init__()
         self.Attn_Mil = AttMil(d=d_hist)
-        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=4)
+        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
 
     def forward(self,hist):
         hist = self.Attn_Mil(hist)
@@ -200,13 +200,27 @@ class SNN_Survival(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_gen,d_gen_out,device):
+    def __init__(self,d_gen,d_gen_out,bins,device):
         super(SNN_Survival,self).__init__()
         
         self.SNN = SNN(d =d_gen ,d_out = d_gen_out)
-        self.Classifier_Head = Classifier_Head(outsize = d_gen_out,d_hidden=256,t_bins=4)
+        self.Classifier_Head = Classifier_Head(outsize = d_gen_out,d_hidden=256,t_bins=bins)
 
     def forward(self,gen):
         
         gen = self.SNN(gen)
         return self.Classifier_Head(gen)
+
+
+class TransformerMil_Survival(nn.Module):
+    """
+    Combining all modules to the complete PORPOISE model 
+    """
+    def __init__(self,d_hist,bins,device):
+        super(TransformerMil_Survival,self).__init__()
+        self.Attn_Mil = AttMil(d=d_hist)
+        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
+
+    def forward(self,hist):
+        hist = self.Attn_Mil(hist)
+        return self.Classifier_Head(hist)

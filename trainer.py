@@ -11,7 +11,7 @@ from torch import nn
 from utils import c_index
 
 
-def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,storepath,l1_lambda=None):
+def MM_Trainer(model,device,epochs,trainloader,testloader,lr,alpha,fold,storepath,bins,l1_lambda=None):
     
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(),lr=lr,betas=[0.9,0.999],weight_decay=1e-5,)
@@ -19,13 +19,15 @@ def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,store
     #criterion = nn.CrossEntropyLoss() #CE loss 
     model_name = model.__class__.__name__
     optimizer_name = optimizer.__class__.__name__
-    run_name = f'{model_name}_alpha={alpha}-lr{lr}' # TODO still hard coded 
-    accuracy = Accuracy(task="multiclass", num_classes=4,average='weighted')
+    run_name = f'{model_name}_nll-alpha{str(alpha)}-l1_lambda{l1_lambda}-fold{fold}-bins{bins}' # TODO still hard coded 
+    accuracy = Accuracy(task="multiclass", num_classes=bins,average='weighted')
 
     print(run_name)
     with wandb.init(project='MultiModal', name=run_name, entity='tobias-seibel',mode='online') as run:
         
         # Log some info
+        run.config.l1_lambda = l1_lambda
+        run.config.alpha = alpha
         run.config.learning_rate = lr
         run.config.optimizer = optimizer.__class__.__name__
         run.watch(model,log = 'all',criterion = criterion,log_graph=True,log_freq=10)
@@ -38,7 +40,7 @@ def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,store
             model.train()
             
             #init counter
-            out_all =torch.zeros(size=(len(trainloader),4),device='cpu')      
+            out_all =torch.zeros(size=(len(trainloader),bins),device='cpu')      
             c_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
             l_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
             runningloss = 0
@@ -62,7 +64,7 @@ def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,store
                     histo_weights = torch.cat([x.flatten() for x in model.Attn_Mil.parameters()])
                     gen_weights = torch.cat([x.flatten() for x in model.SNN.parameters()])
                     #loss = criterion(out,l) + l1_lambda * torch.norm(gen_weights,1)    + l1_lambda * torch.norm(histo_weights,1) ## for CE loss 
-                    loss = criterion(out,c,l) + l1_lambda * torch.norm(gen_weights,1)    + l1_lambda * torch.norm(histo_weights,1)
+                    loss = (1-2*l1_lambda)*criterion(out,c,l) + l1_lambda * torch.norm(gen_weights.cpu(),1).cpu()    + l1_lambda * torch.norm(histo_weights.cpu(),1).cpu()
                          
                 
                 loss.backward() 
@@ -81,7 +83,7 @@ def MM_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,store
 
 
             #init counter
-            out_all_val =torch.empty(size=(len(testloader),4),device='cpu')        
+            out_all_val =torch.empty(size=(len(testloader),bins),device='cpu')        
             l_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
             c_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
             val_rloss = 0
@@ -135,7 +137,7 @@ def store_checkpoint(epoch,model,optimizer,storepath,run_name):
                 os.path.join(storepath, f"{run_name}_{epoch}.pth"))
 
 
-def Unimodal_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold,storepath,modality,l1_lambda=None):
+def Unimodal_Trainer(model,device,epochs,trainloader,testloader,lr,alpha,storepath,modality,fold,bins,l1_lambda=None):
     
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(),lr=lr,betas=[0.9,0.999],weight_decay=1e-5,)
@@ -143,13 +145,15 @@ def Unimodal_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold
     #criterion = nn.CrossEntropyLoss() #CE loss 
     model_name = model.__class__.__name__
     optimizer_name = optimizer.__class__.__name__
-    run_name = f'{model_name}_{"NLLLOSS"}-alpha{str(alpha)}-fold{fold}-lr{lr}' # TODO still hard coded 
-    accuracy = Accuracy(task="multiclass", num_classes=4,average='weighted')
+    run_name = f'{model_name}_nll-alpha{str(alpha)}-fold{fold}-l1_lambda{l1_lambda}-bins{bins}' # TODO still hard coded 
+    accuracy = Accuracy(task="multiclass", num_classes=bins,average='weighted')
     
     print(run_name)
     with wandb.init(project='MultiModal', name=run_name, entity='tobias-seibel',mode='online') as run:
         
         # Log some info
+        run.config.l1_lambda = l1_lambda
+        run.config.alpha = alpha
         run.config.learning_rate = lr
         run.config.optimizer = optimizer.__class__.__name__
         run.watch(model,log = 'all',criterion = criterion,log_graph=True,log_freq=10)
@@ -162,7 +166,7 @@ def Unimodal_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold
             model.train()
             
             #init counter
-            out_all =torch.zeros(size=(len(trainloader),4),device='cpu')      
+            out_all =torch.zeros(size=(len(trainloader),bins),device='cpu')      
             c_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
             l_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
             runningloss = 0
@@ -193,7 +197,7 @@ def Unimodal_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold
                     elif modality =="gen":
                         weights = torch.cat([x.flatten() for x in model.SNN.parameters()])
                     #loss = criterion(out,l) + l1_lambda * torch.norm(weights,1)     ## for CE loss 
-                    loss = criterion(out,c,l) + l1_lambda * torch.norm(weights,1)
+                    loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
                          
                 
                 loss.backward() 
@@ -212,7 +216,7 @@ def Unimodal_Trainer(model,device,epochs,trainloader,testloader,bs,lr,alpha,fold
 
 
             #init counter
-            out_all_val =torch.empty(size=(len(testloader),4),device='cpu')        
+            out_all_val =torch.empty(size=(len(testloader),bins),device='cpu')        
             l_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
             c_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
             val_rloss = 0
