@@ -43,22 +43,32 @@ class SNN(nn.Module):
     d : dimension of molecular vector
     d_out : dimnesion of embedded output vector 
     """
-    def __init__(self,d : int,d_out : int = 32):
+    def __init__(self,d : int,d_out : int = 32,activation="SELU"):
         super(SNN,self).__init__()
         
         
         self.lin1 = nn.Linear(d,256)
-        torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
+        
 
         self.lin2 = nn.Linear(256,256)
-        torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
-        self.selu1 = nn.SELU()
-        self.selu2 = nn.SELU()
         self.alphadropout1 = nn.AlphaDropout(p=0.5)
         self.alphadropout2 = nn.AlphaDropout(p=0.5)
         self.fc = nn.Linear(256,d_out)
-        torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
-        self.selu3 = nn.SELU()
+        if activation=="SELU":
+            torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
+            torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
+            torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
+            self.selu1 = nn.SELU()
+            self.selu2 = nn.SELU()
+            self.selu3 = nn.SELU()
+        elif activation=="RELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.ReLU()
+            self.selu2 = nn.ReLU()
+            self.selu3 = nn.ReLU()
+        
 
     def forward(self,x):
 
@@ -200,10 +210,10 @@ class SNN_Survival(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_gen,d_gen_out,bins,device):
+    def __init__(self,d_gen,d_gen_out,bins,device,activation):
         super(SNN_Survival,self).__init__()
         
-        self.SNN = SNN(d =d_gen ,d_out = d_gen_out)
+        self.SNN = SNN(d =d_gen ,d_out = d_gen_out,activation=activation)
         self.Classifier_Head = Classifier_Head(outsize = d_gen_out,d_hidden=256,t_bins=bins)
 
     def forward(self,gen):

@@ -66,7 +66,7 @@ def MM_train_func_kfold(modality, epochs,learningrate,alpha,folds, d_gen_out,l1_
 
         
         d_gen = train_ds.gen_depth()
-        
+        test_ds.gen_depth()
 
         
         training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
