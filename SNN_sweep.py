@@ -1,4 +1,8 @@
-#!/usr/bin/env python
+#
+#
+#
+# Code adapted from https://github.com/wandb/examples/tree/master/examples/wandb-sweeps/sweeps-cross-validation
+#
 import wandb
 import os
 import multiprocessing
@@ -15,9 +19,9 @@ from trainer import *
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
-    "WorkerInitData", ("num", "sweep_id", "sweep_run_name", "config")
+    "WorkerInitData", ("num", "sweep_id", "sweep_run_name", "config","n_folds")
 )
-WorkerDoneData = collections.namedtuple("WorkerDoneData", ("val_c_index"))
+WorkerDoneData = collections.namedtuple("WorkerDoneData", ("val_c_all"))
 
 
 def reset_wandb_env():
@@ -42,17 +46,9 @@ def train(sweep_q, worker_q):
         name=run_name,
         config=config,
     )
-    run.define_metric("epoch")
-    run.define_metric("train/*", step_metric="epoch")
-    run.define_metric("valid/*", step_metric="epoch")
-    
-    
-    #always same
-    storepath = '/work4/seibel/multimodal_survival_prediction/results/gensweep'
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    data_path = "/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files" # folderpath for h5y fiels which contain the WSI feat vecs 
-    #depends on sweep values
-    folds = worker_data.num
+    ######
+    fold = worker_data.num
+    num_fold = worker_data.n_folds
     
     batchsize = config["batchsize"]
     bins = config["bins"]
@@ -63,11 +59,14 @@ def train(sweep_q, worker_q):
     alpha = config["alpha"]
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
-    priint(1)
-    f = f"/nodes/bevog/work4/seibel/data/tcga_brca_trainable{int(bins)}.csv"
+    
+    storepath = '/work4/seibel/multimodal_survival_prediction/results/gensweep'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    data_path = "/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files"
+    
+    f = "/nodes/bevog/work4/seibel/data/tcga_brca_trainable"+str(bins)+".csv"
     df = pd.read_csv(f)
-    df["kfold"] = df["kfold"].apply(lambda x : (x+1)%folds)
-
+    df["kfold"] = df["kfold"].apply(lambda x : (x+fold)%num_fold)
     train_ds = Gen_Dataset(df,data_path = data_path,train=True)
     test_ds = Gen_Dataset(df,data_path = data_path,train=False)
     d_gen = train_ds.gen_depth()
@@ -77,21 +76,22 @@ def train(sweep_q, worker_q):
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     criterion = Survival_Loss(alpha)
     
-    #training
-    
-    val_c_index = Gen_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+    c_vals = Gen_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                       test_dataloader,bins,epochs,device,storepath,run_name,
                       l1_lambda 
                       )
     
-    run.log(dict(val_c_index=val_c_index))
+        
+    #######
+    
+    run.log(dict(val_c_all=c_vals.numpy()))
     wandb.join()
-    sweep_q.put(WorkerDoneData(val_c_index=val_c_index))
+    sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy()))
 
 
 def main():
     num_folds = 5
-    epochs = 20 # hardcoded
+
     # Spin up workers before calling wandb.init()
     # Workers will be blocked on a queue waiting to start
     sweep_q = multiprocessing.Queue()
@@ -113,7 +113,7 @@ def main():
     sweep_run.save()
     sweep_run_name = sweep_run.name or sweep_run.id or "unknown"
 
-    c_tensor = torch.zeros(size=(num_folds,epochs))
+    metrics = []
     for num in range(num_folds):
         worker = workers[num]
         # start worker
@@ -121,6 +121,7 @@ def main():
             WorkerInitData(
                 sweep_id=sweep_id,
                 num=num,
+                n_folds=num_folds,
                 sweep_run_name=sweep_run_name,
                 config=dict(sweep_run.config),
             )
@@ -130,14 +131,10 @@ def main():
         # wait for worker to finish
         worker.process.join()
         # log metric to sweep_run
-        c_tensor[num,:] = result.val_c_index
-        
-    mean_cindex_curve = c_tensor.mean(dim=0)
-    if mean_cindex_curve[-1].item() == mean_cindex_curve.max().item():
-        last_epoch = True
-    else:
-        last_epoch = False
-    sweep_run.log(dict(val_c_index=mean_cindex_curve.max(),last_epoch=last_epoch))
+        metrics.append(result.val_c_all)
+    metrics_mean = np.mean(np.asarray(metrics),axis=0)
+    
+    sweep_run.log(dict(c_index_max=metrics_mean.max(),c_index_last=metrics_mean[-1],c_index_epoch=np.argmax(metrics_mean)))
     wandb.join()
 
     print("*" * 40)

@@ -1,0 +1,27 @@
+project: SNN_sweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_max
+parameters:
+  epochs:
+    value: 20
+  batchsize:
+    value: 1
+  alpha:
+    values: [0.5,0.75]
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  learningrate:
+    values: [1e-4,1e-5]
+  activation:
+    value: SELU
+  bins:
+    value: 4
+
+command:
+  - python3
+  - SNN_sweep.py
