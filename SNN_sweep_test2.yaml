@@ -8,19 +8,19 @@ parameters:
   epochs:
     value: 20
   batchsize:
-    values: [1,2,4,8,16,32,64]
+    values: [1,32,128]
   alpha:
-    value: 0.5
+    value: [0.75,0.5,0.25,0]
   l1_lambda:
-    value: 1e-5
+    values: [1e-5,1e-6,1e-7,1e-8,0]
   d_gen_out:
-    value: 32
+    values: [32,128]
   learningrate:
-    value: 1e-4
+    values: [1e-4,1e-5]
   activation:
-    value: SELU
+    values: [SELU,GELU]
   bins:
-    values: [4,8,16,32,64]
+    values: [4,64]
 
 command:
   - python3

@@ -338,6 +338,9 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         run.log(wandbdict)
     
     
+    return c_index_val_all
+
+    
     # Store models with fold name  
     if not os.path.exists(storepath):
         os.mkdir(storepath)
@@ -346,8 +349,6 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 'model': model.state_dict(),
                 },
                 os.path.join(storepath, f"{run_name}.pth"))
-    return c_index_val_all
- 
     
     
     

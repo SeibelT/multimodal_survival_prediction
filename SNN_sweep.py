@@ -49,7 +49,6 @@ def train(sweep_q, worker_q):
     ######
     fold = worker_data.num
     num_fold = worker_data.n_folds
-    
     batchsize = config["batchsize"]
     bins = config["bins"]
     
