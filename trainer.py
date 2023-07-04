@@ -8,7 +8,7 @@ from sksurv.metrics import concordance_index_censored
 from sklearn.metrics import roc_auc_score
 from torchmetrics import Accuracy
 from torch import nn 
-from utils import c_index
+from utils import *
 
 
 def MM_Trainer(model,device,epochs,trainloader,testloader,lr,alpha,fold,storepath,bins,l1_lambda=None):
@@ -337,7 +337,7 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                     }
         run.log(wandbdict)
     
-    
+    KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
     return c_index_val_all
 
     

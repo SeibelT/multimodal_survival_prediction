@@ -112,3 +112,70 @@ def prepare_csv(df_path,k,n_bins=4,savename = None):
     if savename is not None:
         df.to_csv(savename,index=False)
     return df 
+
+
+
+
+def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
+    """
+    Generates a Histogram from the risk distribution for censored and uncensored patients
+    Generates n thresholds within the range, used for stratifying dataset.
+    For each threshold, a plot is passed to wandb, containing the full KM-curve and the low and high groups. 
+    Use the function at the end of training. 
+    """
+    print("Start Logging KM-Estimators")
+    risk = get_risk(out)
+    
+    #thresholds
+    min,max = risk.min(),risk.max()
+    thresholds = np.linspace(min,max,n_thresholds+2)[1:-1]
+    
+    #hist
+    censored = c.type(torch.bool)
+    uncensored = ~c.type(torch.bool)
+    
+    hist_censored = torch.histc(risk[censored],bins=nbins,min = min , max =max ) 
+    hist_uncensored = torch.histc(risk[uncensored],bins=nbins,min = min , max =max ) 
+    
+    table = run.plot.line_series(
+          xs =np.linspace(min,max,nbins),
+          ys=[hist_censored,hist_uncensored],
+          keys=["censored", "uncensored"],
+          title=f"Histogramm",
+          xname="risk")
+    run.log({"risk_histogramm":table})
+    
+    #KaplanMeier Plots
+    x_full, y_full = kaplan_meier_estimator(uncensored.numpy(), event_cond)
+    xfull, yfull = stepfunc(x_full, y_full)
+    for idx,threshold in enumerate(thresholds): 
+        xlow, ylow = kaplan_meier_estimator(uncensored[risk>threshold].numpy(),
+                                    event_cond[risk>threshold])
+
+        xhigh, yhigh = kaplan_meier_estimator(uncensored[risk<=threshold].numpy(),
+                                    event_cond[risk<=threshold])
+        
+        xlow, ylow =stepfunc(xlow, ylow)
+        xhigh, yhigh =stepfunc(xhigh, yhigh)
+
+        
+        lineseries = run.plot.line_series(
+            xs=[xlow,xhigh,xfull],
+            ys=[ylow,yhigh,yfull],
+            keys=["lowrisk", "highrisk","fullrisk"],
+            title=f"KM Stratification at risk={str(round(threshold,2)).replace('.',',')}",
+            xname="time")
+        
+        run.log({f"KM_{idx}" :lineseries})
+    print("Finished logging KM-Estimators")
+    
+def get_risk(out):
+    h = nn.Sigmoid()(out)
+    S = torch.cumprod(1-h,dim = -1)
+    risk = -S.sum(dim=1)
+    return risk
+
+def stepfunc(x,y,eps=1e-4):
+    x = np.stack((x-eps,x),axis=1).flatten()
+    y = np.stack((y,y),axis=1).flatten()
+    return x[1:],y[:-1]
