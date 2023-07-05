@@ -1,0 +1,31 @@
+project: Attention_paramsweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_max
+parameters:
+  epochs:
+    value: 20
+  alpha:
+    values: [0.5,0.25]
+  l1_lambda:
+    value: 1e-7
+  d_gen_out:
+    value: 32
+  learningrate:
+    value: [1e-5,1e-6,1e-7]
+  activation:
+    values: [SELU,GELU]
+  bins:
+    values: [4,32]
+  modality:
+    value: hist
+  batchsize:
+    value: 1
+  datapath:
+    value: /work4/seibel/data
+
+command:
+  - python3
+  - Unimodal_sweep.py

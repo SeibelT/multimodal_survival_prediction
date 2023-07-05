@@ -1,4 +1,4 @@
-project: SNN_sweep
+project: MMF_paramsweep
 entity: tobias-seibel
 method: grid
 metric:
@@ -7,21 +7,23 @@ metric:
 parameters:
   epochs:
     value: 20
-  batchsize:
-    values: [1,32,128]
   alpha:
-    value: [0.75,0.5,0.25,0]
+    values: [0.5,0.25]
   l1_lambda:
-    values: [1e-5,1e-6,1e-7,1e-8,0]
+    value: 1e-7
   d_gen_out:
-    values: [32,128]
+    value: 32
   learningrate:
-    values: [1e-4,1e-5]
+    value: [1e-5,1e-6,1e-7]
   activation:
     values: [SELU,GELU]
   bins:
-    values: [4,64]
+    values: [4,32]
+  batchsize:
+    value: 1
+  datapath:
+    value: /work4/seibel/data
 
 command:
   - python3
-  - SNN_sweep.py
+  - MM_sweep.py

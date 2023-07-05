@@ -170,12 +170,12 @@ class Porpoise(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,d_gen,d_gen_out,device):
+    def __init__(self,d_hist,d_gen,d_gen_out,device,activation):
         super(Porpoise,self).__init__()
         dims = [d_hist//2,d_gen_out]   # output dimension of d_hist is given due to structure of implemented AttMIL
         flat_fusion_tensor = (d_hist//2+1) * (d_gen_out+1)
         self.Attn_Mil = AttMil(d=d_hist)
-        self.SNN = SNN(d =d_gen ,d_out = d_gen_out)
+        self.SNN = SNN(d =d_gen ,d_out = d_gen_out,activation=activation)
         self.Gated_Fusion = Gated_Fusion(n_mods = 2,dims=dims,device=device)
         self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=256,t_bins=4)
 
@@ -194,7 +194,7 @@ class Porpoise(nn.Module):
 
 class AttMil_Survival(nn.Module):
     """
-    Combining all modules to the complete PORPOISE model 
+    Unimodel: hist survival model 
     """
     def __init__(self,d_hist,bins,device):
         super(AttMil_Survival,self).__init__()
@@ -208,7 +208,7 @@ class AttMil_Survival(nn.Module):
 
 class SNN_Survival(nn.Module):
     """
-    Combining all modules to the complete PORPOISE model 
+    Unimodel: gen survival model 
     """
     def __init__(self,d_gen,d_gen_out,bins,device,activation):
         super(SNN_Survival,self).__init__()
@@ -222,15 +222,24 @@ class SNN_Survival(nn.Module):
         return self.Classifier_Head(gen)
 
 
+
 class TransformerMil_Survival(nn.Module):
     """
-    Combining all modules to the complete PORPOISE model 
+        Unimodel: gen survival model  with attntion 
     """
-    def __init__(self,d_hist,bins,device):
+    def __init__(self,d_hist,bins,d_transformer=1024):
         super(TransformerMil_Survival,self).__init__()
-        self.Attn_Mil = AttMil(d=d_hist)
-        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
 
-    def forward(self,hist):
-        hist = self.Attn_Mil(hist)
-        return self.Classifier_Head(hist)
+        self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
+        self.Encoder = torch.nn.TransformerEncoder(nn.TransformerEncoderLayer(d_transformer,
+                                                                            nhead=8,dropout=0.1,activation=nn.GELU(),batch_first=True)
+                                                ,num_layers=2)
+        self.lin_embedder2 = nn.Linear(d_transformer,d_hist//2)
+        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
+    
+    def forward(self,x):
+        x = self.lin_embedder1(x)
+        x = self.Encoder(x)
+        out = x.mean(dim=-2)
+        out = self.lin_embedder2(out)
+        return self.Classifier_Head(out)

@@ -4,7 +4,8 @@ from sklearn.preprocessing import StandardScaler
 import torch
 from torch import nn 
 from sksurv.metrics import concordance_index_censored,cumulative_dynamic_auc
-
+import wandb
+from sksurv.nonparametric import kaplan_meier_estimator
 
 class Survival_Loss(nn.Module):
     def __init__(self,alpha,eps = 1e-7):
@@ -52,8 +53,8 @@ class Survival_Loss(nn.Module):
         logS = logS*c
 
         
-        L_z = -(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
-        L_censored = -(logS) # only censored S 
+        L_z = -torch.sum(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
+        L_censored = -torch.sum(logS) # only censored S 
         
         
         return L_z + (1-self.alpha)*L_censored
@@ -117,12 +118,6 @@ def prepare_csv(df_path,k,n_bins=4,savename = None):
 
 
 def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
-    """
-    Generates a Histogram from the risk distribution for censored and uncensored patients
-    Generates n thresholds within the range, used for stratifying dataset.
-    For each threshold, a plot is passed to wandb, containing the full KM-curve and the low and high groups. 
-    Use the function at the end of training. 
-    """
     print("Start Logging KM-Estimators")
     risk = get_risk(out)
     
@@ -134,20 +129,30 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
     censored = c.type(torch.bool)
     uncensored = ~c.type(torch.bool)
     
-    hist_censored = torch.histc(risk[censored],bins=nbins,min = min , max =max ) 
-    hist_uncensored = torch.histc(risk[uncensored],bins=nbins,min = min , max =max ) 
+    ###wandb histogram
+    x = np.linspace(min,max,nbins)
+    x_c1 = torch.histc(risk[censored],bins=nbins,min = min , max =max ).numpy()
+    x_c2 = torch.histc(risk[uncensored],bins=nbins,min = min , max =max ).numpy() 
+
+    table_hist = wandb.Table(
+            data = do_table(x,x_c1,"censored")+do_table(x,x_c2,"uncensored"),
+            columns=["risk", "count","category"],
+            )
+
+    fields_hist = {"x":"risk","y":"count","groupKeys":"category","title":"Risk Distribution"}
+    custom_histogram = wandb.plot_table(vega_spec_name="tobias-seibel/risk_distribution",
+                data_table=table_hist,
+                fields = fields_hist )
     
-    table = run.plot.line_series(
-          xs =np.linspace(min,max,nbins),
-          ys=[hist_censored,hist_uncensored],
-          keys=["censored", "uncensored"],
-          title=f"Histogramm",
-          xname="risk")
-    run.log({"risk_histogramm":table})
+    wandb.log({"Risk Distribution":custom_histogram})
+    ###
+    
+    
+    
     
     #KaplanMeier Plots
-    x_full, y_full = kaplan_meier_estimator(uncensored.numpy(), event_cond)
-    xfull, yfull = stepfunc(x_full, y_full)
+    xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cond)
+    
     for idx,threshold in enumerate(thresholds): 
         xlow, ylow = kaplan_meier_estimator(uncensored[risk>threshold].numpy(),
                                     event_cond[risk>threshold])
@@ -155,18 +160,17 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
         xhigh, yhigh = kaplan_meier_estimator(uncensored[risk<=threshold].numpy(),
                                     event_cond[risk<=threshold])
         
-        xlow, ylow =stepfunc(xlow, ylow)
-        xhigh, yhigh =stepfunc(xhigh, yhigh)
+        
+        table_KM = wandb.Table(data = do_table(xlow,ylow,"low risk group")+do_table(xhigh,yhigh,"risk high group")+do_table(xfull,yfull,"total group"),
+                        columns=["time","Survival Probability","Group"],)
 
-        
-        lineseries = run.plot.line_series(
-            xs=[xlow,xhigh,xfull],
-            ys=[ylow,yhigh,yfull],
-            keys=["lowrisk", "highrisk","fullrisk"],
-            title=f"KM Stratification at risk={str(round(threshold,2)).replace('.',',')}",
-            xname="time")
-        
-        run.log({f"KM_{idx}" :lineseries})
+        field_KM = {"x":"time","y":"Survival Probability","groupKeys":"Group"}
+        custom_KM = wandb.plot_table(vega_spec_name="tobias-seibel/kaplanmeier",
+                    data_table=table_KM,
+                    fields = field_KM, 
+                    string_fields={"title":f"KM Risk Stratification at {round(threshold,2)}"},
+                    )
+        run.log({f"KM_{idx}" :custom_KM})
     print("Finished logging KM-Estimators")
     
 def get_risk(out):
@@ -176,6 +180,10 @@ def get_risk(out):
     return risk
 
 def stepfunc(x,y,eps=1e-4):
+    #not needed anymore 
     x = np.stack((x-eps,x),axis=1).flatten()
     y = np.stack((y,y),axis=1).flatten()
     return x[1:],y[:-1]
+
+def do_table(x,y,label):
+    return [[x[i],y[i],label] for i in range(len(x))]

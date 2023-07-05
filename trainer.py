@@ -264,9 +264,9 @@ def Unimodal_Trainer(model,device,epochs,trainloader,testloader,lr,alpha,storepa
     
     
     
-def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
+def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                       testloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda 
+                      l1_lambda,modality
                       ):
     
 
@@ -281,13 +281,17 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         l_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
         runningloss = 0
         
-        for idx,(gen,c,l,_) in enumerate(trainloader):
-            x = gen.to(device)
+        for idx,(x,c,l,_) in enumerate(trainloader):
+            x = x.to(device)
             optimizer.zero_grad()
             out = model(x)
             out = out.cpu()
             
-            weights = torch.cat([x.flatten() for x in model.SNN.parameters()])
+            if modality =="gen":
+                weights = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
+            elif modality=="hist":
+                weights = torch.cat([x.flatten() for x in model.AttMil.parameters()]) 
+            
             loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
             loss.backward() 
             optimizer.step()
@@ -311,8 +315,8 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
 
         model.eval()
         with torch.no_grad():
-            for  idx,(gen,c,l,l_con) in enumerate(testloader):
-                x = gen.to(device)
+            for  idx,(x,c,l,l_con) in enumerate(testloader):
+                x = x.to(device)
                 out = model(x)
                 out = out.cpu()
                 #loss = criterion(out,l)  #CE loss
@@ -338,6 +342,7 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         run.log(wandbdict)
     
     KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
+    
     return c_index_val_all
 
     
@@ -350,6 +355,97 @@ def Gen_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 },
                 os.path.join(storepath, f"{run_name}.pth"))
     
+    
+    
+def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
+                      testloader,bins,epochs,device,storepath,run_name,
+                      l1_lambda
+                      ):
+    
+
+    
+    c_index_val_all = torch.zeros(size=(epochs,))
+    for epoch in range(epochs):
+        model.train()
+        
+        #init counter
+        out_all =torch.zeros(size=(len(trainloader),bins),device='cpu')      
+        c_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
+        l_all = torch.zeros(size=(len(trainloader),),device='cpu').to(torch.int16)
+        runningloss = 0
+        
+        for idx,(x,y,c,l,_) in enumerate(trainloader):
+            x = x.to(device)
+            y = y.to(device)
+            optimizer.zero_grad()
+            out = model(x,y)
+            out = out.cpu()
+            
+            weights1 = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
+            weights2 = torch.cat([x.flatten() for x in model.AttMil.parameters()]) 
+            
+            loss = criterion(out,c,l) + 0.5 * l1_lambda * (torch.norm(weights1,1)+torch.norm(weights2,1)).cpu()
+            loss.backward() 
+            optimizer.step()
+             
+            runningloss += loss.item()
+            
+            #add to counters
+            out_all[idx,:] = out
+            l_all[idx] = l
+            c_all[idx] = c
+            del out,l,c
+
+        c_index_train = c_index(out_all,c_all,l_all)
+
+        #init counter
+        out_all_val =torch.empty(size=(len(testloader),bins),device='cpu')        
+        l_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
+        l_con_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
+        c_all_val = torch.empty(size=(len(testloader),),device='cpu').to(torch.int16)
+        val_rloss = 0
+
+        model.eval()
+        with torch.no_grad():
+            for  idx,(x,c,l,l_con) in enumerate(testloader):
+                x = x.to(device)
+                out = model(x)
+                out = out.cpu()
+                #loss = criterion(out,l)  #CE loss
+                loss = criterion(out,c,l)  # TODO add loss regularization 
+                val_rloss += loss.item()
+                
+                out_all_val[idx,:] = out
+                l_all_val[idx] = l
+                l_con_all_val[idx] = l_con
+                c_all_val[idx] = c
+
+
+        c_index_val = c_index(out_all_val,c_all_val,l_all_val)
+        c_index_val_all[epoch] = c_index_val
+        
+        
+        wandbdict = {"epoch": epoch+1,
+                        "train/runningloss": runningloss/len(testloader),
+                        "train/c_index":c_index_train,
+                        'valid/runningloss': val_rloss/len(testloader),
+                        "valid/c_index":c_index_val,
+                    }
+        run.log(wandbdict)
+    
+    KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
+    
+    return c_index_val_all
+
+    
+    # Store models with fold name  
+    if not os.path.exists(storepath):
+        os.mkdir(storepath)
+    
+    torch.save({
+                'model': model.state_dict(),
+                },
+                os.path.join(storepath, f"{run_name}.pth"))
     
     
     
