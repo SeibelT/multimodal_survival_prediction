@@ -23,6 +23,8 @@ parameters:
     value: 4
   device:
     values: [cuda,cpu]
+  dropout:
+    value: 0.1
 
 command:
   - python3

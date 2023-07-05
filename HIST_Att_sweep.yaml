@@ -14,7 +14,7 @@ parameters:
   d_gen_out:
     value: 32
   learningrate:
-    value: [1e-5,1e-6,1e-7]
+    values: [1e-5,1e-6,1e-7]
   activation:
     values: [SELU,GELU]
   bins:
@@ -25,7 +25,8 @@ parameters:
     value: 1
   datapath:
     value: /work4/seibel/data
-
+  dropout:
+    values: [0.1,0.3]
 command:
   - python3
   - Unimodal_sweep.py

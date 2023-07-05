@@ -25,6 +25,8 @@ parameters:
     values: [1,128]
   datapath:
     value: /work4/seibel/data
+  dropout:
+    value: 0.1
 
 command:
   - python3

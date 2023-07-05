@@ -58,13 +58,13 @@ def train(sweep_q, worker_q):
     alpha = config["alpha"]
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
-    modality = config("modality")
+    modality = config["modality"]
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
+    dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     
     storepath =    datapath+f"/results/{modality}sweep"
-    feature_path = datapath+"/TCGA-BRCA-DX-features"
+    feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
     f =            datapath+"/tcga_brca_trainable"+str(bins)+".csv"
     
     df = pd.read_csv(f)
@@ -80,13 +80,14 @@ def train(sweep_q, worker_q):
     elif modality=="hist":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         test_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = AttMil_Survival(d_hist=2048,bins=bins,device=device) 
+        model = AttMil_Survival(d_hist=2048,bins=bins,device=device).to(device)
         
     elif modality=="hist_attention":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         test_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = TransformerMil_Survival(d_hist=2048,bins=bins,device=device)
+        model = TransformerMil_Survival(d_hist=2048,bins=bins,dropout=dropout).to(device)
     
+   
     criterion = Survival_Loss(alpha) 
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
     test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)

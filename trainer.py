@@ -291,8 +291,11 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 weights = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
             elif modality=="hist":
                 weights = torch.cat([x.flatten() for x in model.AttMil.parameters()]) 
+            elif modality=="hist_attention":
+                weights = torch.cat([x.flatten() for x in model.Encoder.parameters()]) 
             
             loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
+            
             loss.backward() 
             optimizer.step()
             

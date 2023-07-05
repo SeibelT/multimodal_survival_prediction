@@ -227,15 +227,16 @@ class TransformerMil_Survival(nn.Module):
     """
         Unimodel: gen survival model  with attntion 
     """
-    def __init__(self,d_hist,bins,d_transformer=1024):
+    def __init__(self,d_hist,bins,d_transformer=512):
         super(TransformerMil_Survival,self).__init__()
-
+        d_out = d_hidden = 256
         self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
-        self.Encoder = torch.nn.TransformerEncoder(nn.TransformerEncoderLayer(d_transformer,
-                                                                            nhead=8,dropout=0.1,activation=nn.GELU(),batch_first=True)
-                                                ,num_layers=2)
-        self.lin_embedder2 = nn.Linear(d_transformer,d_hist//2)
-        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
+        #self.Encoder = torch.nn.TransformerEncoder(nn.TransformerEncoderLayer(d_transformer,
+        #                                                                    nhead=8,dropout=0.1,activation=nn.GELU(),batch_first=True)
+        #                                        ,num_layers=2)
+        self.Encoder = nn.TransformerEncoderLayer(d_transformer,nhead=2,dropout=0.1,activation=nn.GELU(),batch_first=True)
+        self.lin_embedder2 = nn.Linear(d_transformer,d_out)
+        self.Classifier_Head = Classifier_Head(outsize = d_out,d_hidden=d_hidden,t_bins=bins)
     
     def forward(self,x):
         x = self.lin_embedder1(x)
