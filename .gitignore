@@ -8,3 +8,5 @@ wandb
 utils.pyc
 /tensorboard
 /results/*
+*.out
+*.sh

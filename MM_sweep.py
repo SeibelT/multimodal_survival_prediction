@@ -64,7 +64,7 @@ def train(sweep_q, worker_q):
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     
     storepath =    datapath+f"/results/MMsweep"
-    feature_path = datapath+"/TCGA-BRCA-DX-features"
+    feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files"
     f =            datapath+"/tcga_brca_trainable"+str(bins)+".csv"
     
     
@@ -74,18 +74,18 @@ def train(sweep_q, worker_q):
     
     train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
     test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
-    model = TransformerMil_Survival(d_hist=2048,bins=bins,device=device)
     d_gen = train_ds.gen_depth()
-    model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation)
+    model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation).to(device)
     criterion = Survival_Loss(alpha) 
     
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
     test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
-    c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
-                    test_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda
-                    )
+    
+    c_vals =MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+                      test_dataloader,bins,epochs,device,storepath,run_name,
+                      l1_lambda
+                      )
     #######
     
     run.log(dict(val_c_all=c_vals.numpy()))

@@ -385,7 +385,7 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
             out = out.cpu()
             
             weights1 = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
-            weights2 = torch.cat([x.flatten() for x in model.AttMil.parameters()]) 
+            weights2 = torch.cat([x.flatten() for x in model.Attn_Mil.parameters()]) 
             
             loss = criterion(out,c,l) + 0.5 * l1_lambda * (torch.norm(weights1,1)+torch.norm(weights2,1)).cpu()
             loss.backward() 
@@ -410,9 +410,10 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
 
         model.eval()
         with torch.no_grad():
-            for  idx,(x,c,l,l_con) in enumerate(testloader):
+            for  idx,(x,y,c,l,l_con) in enumerate(testloader):
                 x = x.to(device)
-                out = model(x)
+                y = y.to(device)
+                out = model(x,y)
                 out = out.cpu()
                 #loss = criterion(out,l)  #CE loss
                 loss = criterion(out,c,l)  # TODO add loss regularization 

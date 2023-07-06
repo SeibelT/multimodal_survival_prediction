@@ -154,11 +154,11 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
     xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cond)
     
     for idx,threshold in enumerate(thresholds): 
-        xlow, ylow = kaplan_meier_estimator(uncensored[risk>threshold].numpy(),
-                                    event_cond[risk>threshold])
+        xlow, ylow = kaplan_meier_estimator(uncensored[risk<threshold].numpy(),
+                                    event_cond[risk<threshold])
 
-        xhigh, yhigh = kaplan_meier_estimator(uncensored[risk<=threshold].numpy(),
-                                    event_cond[risk<=threshold])
+        xhigh, yhigh = kaplan_meier_estimator(uncensored[risk>=threshold].numpy(),
+                                    event_cond[risk>=threshold])
         
         
         table_KM = wandb.Table(data = do_table(xlow,ylow,"low risk group")+do_table(xhigh,yhigh,"risk high group")+do_table(xfull,yfull,"total group"),
