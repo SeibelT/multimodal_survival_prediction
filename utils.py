@@ -163,7 +163,7 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
                                     event_cond[risk>=threshold])
         
         
-        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {len(risk<threshold)}")+do_table(xhigh,yhigh,f"risk high group {len(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
+        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(risk<threshold)}")+do_table(xhigh,yhigh,f"high risk group {sum(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
                         columns=["time","Survival Probability","Group"],)
 
         field_KM = {"x":"time","y":"Survival Probability","groupKeys":"Group"}

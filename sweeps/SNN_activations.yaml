@@ -14,7 +14,7 @@ parameters:
   d_gen_out:
     value: 32
   learningrate:
-    value: [1e-5,1e-6]
+    values: [1e-5,1e-6,1e-7]
   activation:
     values: [SELU,GELU,RELU]
   bins:
@@ -24,7 +24,7 @@ parameters:
   batchsize:
     values: [1,128]
   datapath:
-    value: /work4/seibel/data
+    value: /nodes/bevog/work4/seibel/data
   dropout:
     value: 0.1
 
