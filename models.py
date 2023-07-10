@@ -69,6 +69,13 @@ class SNN(nn.Module):
             self.selu2 = nn.ReLU()
             self.selu3 = nn.ReLU()
         
+        elif activation=="GELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.GELU()
+            self.selu2 = nn.GELU()
+            self.selu3 = nn.GELU()
 
     def forward(self,x):
 
