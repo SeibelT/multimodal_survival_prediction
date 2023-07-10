@@ -101,8 +101,10 @@ def prepare_csv(df_path,k,n_bins=4,savename = None):
     labels = [i for i in range(n_bins)]
     df.insert(6,"survival_months_discretized",  pd.cut(df["survival_months"],
                                                                bins=bins, 
-                                                               labels=labels)) # insert binned survival month 
-    df.insert(3,"kfold",df.index%k) # insert kfold 
+                                                               labels=labels)) # insert binned survival month
+     
+    diction = dict([(name,idx) for idx,name in enumerate(df["case_id"].unique()) ])
+    df.insert(3,"kfold",df["case_id"].map(diction)%k) # insert kfold 
 
     genomics = df[df.keys()[11:]]
 
@@ -161,7 +163,7 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
                                     event_cond[risk>=threshold])
         
         
-        table_KM = wandb.Table(data = do_table(xlow,ylow,"low risk group")+do_table(xhigh,yhigh,"risk high group")+do_table(xfull,yfull,"total group"),
+        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {len(risk<threshold)}")+do_table(xhigh,yhigh,f"risk high group {len(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
                         columns=["time","Survival Probability","Group"],)
 
         field_KM = {"x":"time","y":"Survival Probability","groupKeys":"Group"}

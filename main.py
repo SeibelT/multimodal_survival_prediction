@@ -109,13 +109,13 @@ if __name__ == '__main__':
     #functions = {'train': MM_train_func,'trainkfold': MM_train_func_kfold,'prepcsv':prep_CSV}
     #functions[sys.argv[1]](sys.argv[2])
 
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=64)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=32)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=16)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=8)
+    prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=64)
+    prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=32)
+    prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=16)
+    prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=8)
     
 
-
+    """
     modality = "hist" # must be one of ["multimodal","hist","gen"]
     epochs = 20  # 20 in paper 
     learningrate = 2e-4   
@@ -137,3 +137,4 @@ if __name__ == '__main__':
     #for alpha in [0.5,1]:
     #    for l1_lambda in [1e-5]:
     #        MM_train_func_kfold(modality, epochs,learningrate,alpha,folds, d_gen_out,l1_lambda,d_hist,bins=4)
+    """
