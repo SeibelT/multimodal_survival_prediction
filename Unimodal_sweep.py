@@ -53,7 +53,7 @@ def train(sweep_q, worker_q):
     bins = config["bins"]
     
     d_gen_out = config["d_gen_out"]
-    epochs = 20 # config.epochs #TODO hardcoded to 20 
+    epochs = config["epochs"] # config.epochs #TODO hardcoded to 20 
     learningrate = config["learningrate"]
     alpha = config["alpha"]
     l1_lambda = config["l1_lambda"]
@@ -94,7 +94,7 @@ def train(sweep_q, worker_q):
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     test_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda,modality=modality
+                    l1_lambda,modality=modality,batchsize=batchsize
                     )
     #######
     

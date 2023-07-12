@@ -1,4 +1,4 @@
-project: MMF_paramsweep
+project: PrePorpoise_sweep
 entity: tobias-seibel
 method: grid
 metric:
@@ -6,25 +6,27 @@ metric:
   name: c_index_max
 parameters:
   epochs:
-    value: 20
+    value: 40
   alpha:
-    values: [0.5,0.25]
+    value: 0.25
   l1_lambda:
     value: 1e-7
   d_gen_out:
     value: 32
   learningrate:
-    values: [1e-5,1e-6,1e-7]
+    values: [1e-6,1e-7,1e-5]
   activation:
-    values: [SELU,GELU]
+    value: SELU
   bins:
-    values: [4,32]
+    values: [4,32,64]
+  modality:
+    value: PrePorpoise
   batchsize:
     value: 1
   datapath:
-    value: /work4/seibel/data
+    value: /nodes/bevog/work4/seibel/data
   dropout:
-    value: 0.1
+    values: [0.3,0.5,0.7]
 
 command:
   - python3

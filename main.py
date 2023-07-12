@@ -113,7 +113,7 @@ if __name__ == '__main__':
     #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=32)
     #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=16)
     #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=8)
-    prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=4)
+    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=4)
     
 
     """

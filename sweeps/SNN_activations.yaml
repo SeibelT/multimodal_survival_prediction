@@ -6,7 +6,7 @@ metric:
   name: c_index_max
 parameters:
   epochs:
-    value: 20
+    value: 40
   alpha:
     values: [0.5,0.25]
   l1_lambda:
@@ -18,11 +18,11 @@ parameters:
   activation:
     values: [SELU,GELU,RELU]
   bins:
-    values: [4,32]
+    value: 32
   modality:
     value: gen
   batchsize:
-    values: [1,128]
+    values: [64,128,256]
   datapath:
     value: /nodes/bevog/work4/seibel/data
   dropout:

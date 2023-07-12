@@ -177,14 +177,14 @@ class Porpoise(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,d_gen,d_gen_out,device,activation):
+    def __init__(self,d_hist,d_gen,d_gen_out,device,activation,bins):
         super(Porpoise,self).__init__()
         dims = [d_hist//2,d_gen_out]   # output dimension of d_hist is given due to structure of implemented AttMIL
         flat_fusion_tensor = (d_hist//2+1) * (d_gen_out+1)
         self.Attn_Mil = AttMil(d=d_hist)
         self.SNN = SNN(d =d_gen ,d_out = d_gen_out,activation=activation)
         self.Gated_Fusion = Gated_Fusion(n_mods = 2,dims=dims,device=device)
-        self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=256,t_bins=4)
+        self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=256,t_bins=bins)
 
     def forward(self,hist,gen):
 
@@ -196,7 +196,27 @@ class Porpoise(nn.Module):
         return self.Classifier_Head(out)
 
 
+class PrePorpoise(nn.Module):
+    """
+    Combining all modules to the complete PORPOISE model 
+    """
+    def __init__(self,d_hist,d_gen,d_transformer,dropout,activation,bins):
+        super(PrePorpoise,self).__init__()
+        self.SNN = SNN(d =d_gen ,d_out = d_transformer,activation=activation)
+        self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
+        self.Encoder = nn.TransformerEncoderLayer(d_transformer,nhead=2,dropout=dropout,activation=nn.GELU(),batch_first=True)
+        self.lin_embedder2 = nn.Linear(d_transformer,d_transformer//2)
+        self.Classifier_Head = Classifier_Head(outsize = d_transformer,d_hidden=256,t_bins=bins)
 
+    def forward(self,hist,gen):
+        gen = self.SNN(gen)
+        hist = self.lin_embedder1(hist)
+        encoded = self.Encoder(torch.cat((gen.unsqueeze(1),hist),dim=1))
+        encoded = self.lin_embedder2(encoded)
+        gen_out,hist_out = encoded.split([1,encoded.size(1)-1],1)
+        out = torch.cat((gen_out.squeeze(1),torch.mean(hist_out,dim=1)),dim=-1)
+    
+        return self.Classifier_Head(out)
 
 
 class AttMil_Survival(nn.Module):
@@ -205,11 +225,11 @@ class AttMil_Survival(nn.Module):
     """
     def __init__(self,d_hist,bins,device):
         super(AttMil_Survival,self).__init__()
-        self.Attn_Mil = AttMil(d=d_hist)
+        self.AttMil = AttMil(d=d_hist)
         self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
 
     def forward(self,hist):
-        hist = self.Attn_Mil(hist)
+        hist = self.AttMil(hist)
         return self.Classifier_Head(hist)
 
 

@@ -24,9 +24,9 @@ parameters:
   batchsize:
     value: 1
   datapath:
-    value: /work4/seibel/data
+    value: /nodes/bevog/work4/seibel/data
   dropout:
-    values: [0.1,0.3]
+    values: [0.1,0.3,0.5]
 command:
   - python3
   - Unimodal_sweep.py

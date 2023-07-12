@@ -53,8 +53,8 @@ class Survival_Loss(nn.Module):
         logS = logS*c
 
         
-        L_z = -torch.sum(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
-        L_censored = -torch.sum(logS) # only censored S 
+        L_z = -torch.mean(logh+logS_bar) # -torch.sum(logS_bar) # only uncensored needed! for h and S_bar 
+        L_censored = -torch.mean(logS) # only censored S 
         
         
         return L_z + (1-self.alpha)*L_censored

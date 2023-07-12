@@ -53,39 +53,48 @@ def train(sweep_q, worker_q):
     bins = config["bins"]
     
     d_gen_out = config["d_gen_out"]
-    epochs = 20 # config.epochs #TODO hardcoded to 20 
+    epochs = config["epochs"] # config.epochs #TODO hardcoded to 20 
     learningrate = config["learningrate"]
     alpha = config["alpha"]
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
+    modality = config["modality"]
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    
+    dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     
-    storepath =    datapath+f"/results/MMsweep"
-    feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files"
+    storepath =    datapath+f"/results/{modality}sweep"
+    feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
     f =            datapath+"/tcga_brca_trainable"+str(bins)+".csv"
-    
     
     df = pd.read_csv(f)
     df["kfold"] = df["kfold"].apply(lambda x : (x+fold)%num_fold)
     
+    if modality=="Porpoise":
+        
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
+        test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        d_gen = train_ds.gen_depth()
+        model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
+        
     
-    train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
-    test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
-    d_gen = train_ds.gen_depth()
-    model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation).to(device)
+    elif modality=="PrePorpoise":
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
+        test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise(d_hist=2048,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
+        
+    
+    
+   
     criterion = Survival_Loss(alpha) 
-    
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
     test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
-    
-    c_vals =MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
-                      test_dataloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda
-                      )
+    c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+                    test_dataloader,bins,epochs,device,storepath,run_name,
+                    l1_lambda,modality=modality,batchsize=batchsize
+                    )
     #######
     
     run.log(dict(val_c_all=c_vals.numpy()))
