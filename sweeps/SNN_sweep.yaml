@@ -30,4 +30,4 @@ parameters:
 
 command:
   - python3
-  - Unimodal_sweep.py
+  - kfold_sweep.py

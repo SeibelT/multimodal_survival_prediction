@@ -28,4 +28,4 @@ parameters:
 
 command:
   - python3
-  - SNN_sweep.py
+  - kfold_sweep.py

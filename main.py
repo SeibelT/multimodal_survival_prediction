@@ -109,11 +109,11 @@ if __name__ == '__main__':
     #functions = {'train': MM_train_func,'trainkfold': MM_train_func_kfold,'prepcsv':prep_CSV}
     #functions[sys.argv[1]](sys.argv[2])
 
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=64)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=32)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=16)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=8)
-    #prep_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=4)
+    #prep_kfold_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=64)
+    #prep_kfold_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=32)
+    #prep_kfold_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=16)
+    #prep_kfold_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=8)
+    #prep_kfold_CSV(f ="/work4/seibel/PORPOISE/datasets_csv/tcga_brca_all_clean.csv.zip" ,bins=4)
     
 
     """

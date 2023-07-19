@@ -30,4 +30,4 @@ parameters:
 
 command:
   - python3
-  - MM_sweep.py
+  - kfold_sweep.py

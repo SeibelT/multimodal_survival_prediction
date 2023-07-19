@@ -84,10 +84,11 @@ def c_index(out_all,c_all,l_all): # TODO to utils
 
 
 
-def prepare_csv(df_path,k,n_bins=4,savename = None):
+def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
     #clusters data into k folds stratified by patients,
     #bins survivaltime and , normalizes/transforms gen features into tensor  
     #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
+    #fracs (eg:0.8)
     df = pd.read_csv(df_path,compression='zip')
 
     # get time bins 
@@ -103,20 +104,41 @@ def prepare_csv(df_path,k,n_bins=4,savename = None):
                                                                bins=bins, 
                                                                labels=labels)) # insert binned survival month
      
-    diction = dict([(name,idx) for idx,name in enumerate(df["case_id"].unique()) ])
-    df.insert(3,"kfold",df["case_id"].map(diction)%k) # insert kfold 
+    
+    if split=="kfold":
+        diction = dict([(name,idx) for idx,name in enumerate(df["case_id"].unique()) ])
+        df.insert(3,"kfold",df["case_id"].map(diction)%kfolds) # insert kfold 
+        genomics = df[df.keys()[11:]]
 
-    genomics = df[df.keys()[11:]]
+        scaler = StandardScaler()
+        scaled_genomics = scaler.fit_transform(genomics)
+        df[df.keys()[11:]] = scaled_genomics
 
-    scaler = StandardScaler()
-    scaled_genomics = scaler.fit_transform(genomics)
-    df[df.keys()[11:]] = scaled_genomics
-
-    if savename is not None:
-        df.to_csv(savename,index=False)
-    return df 
+        if save:
+            savename = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_kfold.csv")
+            df.to_csv(savename,index=False)
+        return df 
 
 
+    elif split=="traintest":
+        train_len = int(len(df)*frac)
+        diction = dict([(name,1) if idx<train_len else (name,0) for idx,name in enumerate(df["case_id"].unique())])
+        df.insert(3,"traintest",df["case_id"].map(diction)) # insert traintestlabel 
+        
+        genomics = df[df.keys()[11:]]
+        scaler = StandardScaler()
+        scaled_genomics = scaler.fit_transform(genomics)
+        df[df.keys()[11:]] = scaled_genomics
+
+        df_train = df[df["traintest"]==1]
+        df_test = df[df["traintest"]==0]
+        if save:
+            savename_train = df_path.replace("all_clean.csv.zip",f"_trainsplit.csv")
+            df_train.to_csv(savename_train,index=False)
+            
+            savename_test = df_path.replace("all_clean.csv.zip",f"_testsplit.csv")
+            df_test.to_csv(savename_test,index=False)
+        return df_train,df_test 
 
 
 def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):

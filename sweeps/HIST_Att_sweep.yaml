@@ -29,4 +29,4 @@ parameters:
     values: [0.1,0.5,0.7]
 command:
   - python3
-  - Unimodal_sweep.py
+  - kfold_sweep.py

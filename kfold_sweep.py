@@ -1,21 +1,16 @@
+# Framework for k-fold crossvalidation wandb sweeps adapted from https://github.com/wandb/examples/tree/master/examples/wandb-sweeps/sweeps-cross-validation
 #
-#
-#
-# Code adapted from https://github.com/wandb/examples/tree/master/examples/wandb-sweeps/sweeps-cross-validation
-#
-import wandb
 import os
-import multiprocessing
-import collections
-import random
-
-import sys
-from utils import  prepare_csv
-from models import *
-from multi_modal_ds import *
-import pandas as pd
+import wandb
 import torch
+import collections
+import pandas as pd
+import multiprocessing
+
+from models import *
 from trainer import *
+from multi_modal_ds import *
+
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
@@ -46,31 +41,50 @@ def train(sweep_q, worker_q):
         name=run_name,
         config=config,
     )
-    ######
+    #get worker data 
     fold = worker_data.num
     num_fold = worker_data.n_folds
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    
+    #get config data from sweep file
     batchsize = config["batchsize"]
     bins = config["bins"]
-    
     d_gen_out = config["d_gen_out"]
-    epochs = config["epochs"] # config.epochs #TODO hardcoded to 20 
+    epochs = config["epochs"] 
     learningrate = config["learningrate"]
     alpha = config["alpha"]
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
     modality = config["modality"]
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     
-    storepath =    datapath+f"/results/{modality}sweep"
+    #setup file paths and read CSV #TODO more general solution needed if time 
+    storepath =    datapath+f"/results/{modality}sweep"  
     feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
-    f =            datapath+"/tcga_brca_trainable"+str(bins)+".csv"
+    csv_path =            datapath+"/tcga_brca_trainable"+str(bins)+".csv" # CSV file 
     
-    df = pd.read_csv(f)
-    df["kfold"] = df["kfold"].apply(lambda x : (x+fold)%num_fold)
     
-    if modality=="gen":
+    
+    df = pd.read_csv(csv_path)
+    df["kfold"] = df["kfold"].apply(lambda x : (x+fold)%num_fold) 
+    
+    #Initialize Dataset and Model based on Modality
+    if modality=="Porpoise":
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
+        test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        d_gen = train_ds.gen_depth()
+        model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
+        
+    
+    elif modality=="PrePorpoise":
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
+        test_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise(d_hist=2048,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
+        
+    
+    elif modality=="gen":
         train_ds = Gen_Dataset(df,data_path = feature_path,train=True)
         test_ds = Gen_Dataset(df,data_path = feature_path,train=False)
         d_gen = train_ds.gen_depth()
@@ -92,11 +106,20 @@ def train(sweep_q, worker_q):
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
     test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
-    c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+    
+    #run trainer
+    if modality in ["Porpoise","PrePorpoise",]:
+        c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     test_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,batchsize=batchsize
                     )
-    #######
+        
+    elif modality in ["gen","hist","hist_attention"]:
+        c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+                    test_dataloader,bins,epochs,device,storepath,run_name,
+                    l1_lambda,modality=modality,batchsize=batchsize
+                    )
+   
     
     run.log(dict(val_c_all=c_vals.numpy()))
     wandb.join()
