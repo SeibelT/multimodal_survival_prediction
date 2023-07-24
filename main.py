@@ -1,10 +1,10 @@
-import sys
+
 from utils import  prepare_csv
-from models import *
-from multi_modal_ds import HistGen_Dataset
+from models.Aggregation_Models import *
+from datasets.Aggregation_Dataset import HistGen_Dataset
 import pandas as pd
 import torch
-from trainer import *
+from trainer.Aggregation_Trainer import *
 from torch.utils.tensorboard import SummaryWriter
 
 def MM_train_func(modality, epochs,learningrate,alpha,folds, d_gen_out,l1_lambda,d_hist,bins=4,transformer=False):

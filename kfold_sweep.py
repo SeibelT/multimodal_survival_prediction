@@ -7,9 +7,9 @@ import collections
 import pandas as pd
 import multiprocessing
 
-from models import *
-from trainer import *
-from multi_modal_ds import *
+from models.Aggregation_Models import *
+from trainer.Aggregation_Trainer import *
+from datasets.Aggregation_Dataset import *
 
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
