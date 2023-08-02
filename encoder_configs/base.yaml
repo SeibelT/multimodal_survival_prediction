@@ -1,0 +1,23 @@
+wandb_settings:
+        monitoring: 
+        project: 2
+        entity: 0.001
+        name : name
+train_settings:
+        save_dir : /nodes/bevog/work4/seibel/data/testing
+        max_epochs : 20
+        checkpoint_path : 
+        do_test : 1
+        default_root_dir : /nodes/bevog/work4/seibel/data/testing
+        model_params : 
+                lr : 0.0001
+                channels : 12
+        train_ds_params : 
+                length : 64 
+        test_ds_params : 
+                length : 64
+        trainer_params : 
+                a : abc
+                b : def
+encode_settings:
+        a : 0 
