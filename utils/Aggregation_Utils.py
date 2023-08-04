@@ -84,17 +84,17 @@ def c_index(out_all,c_all,l_all): # TODO to utils
 
 
 
-def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
+def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac_val=None):
     #clusters data into k folds stratified by patients,
     #bins survivaltime and , normalizes/transforms gen features into tensor  
     #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
     #fracs (eg:0.8)
     df = pd.read_csv(df_path,compression='zip')
-
+    
     # get time bins 
     df_uncensored = (df[df["censorship"]==0]).drop_duplicates(["case_id"])
     _,bins = pd.qcut(df_uncensored['survival_months'],q = n_bins,retbins=True)  # distribute censored survival months into quartiles
-
+    
     # adapt time bins 
     bins[0] = 0 
     bins[-1] = np.inf
@@ -103,7 +103,7 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
     df.insert(6,"survival_months_discretized",  pd.cut(df["survival_months"],
                                                                bins=bins, 
                                                                labels=labels)) # insert binned survival month
-     
+    
     
     if split=="kfold":
         diction = dict([(name,idx) for idx,name in enumerate(df["case_id"].unique()) ])
@@ -115,30 +115,39 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
         df[df.keys()[11:]] = scaled_genomics
 
         if save:
-            savename = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_kfold.csv")
+            savename = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_{kfolds}fold.csv")
             df.to_csv(savename,index=False)
         return df 
 
-
-    elif split=="traintest":
-        train_len = int(len(df)*frac)
-        diction = dict([(name,1) if idx<train_len else (name,0) for idx,name in enumerate(df["case_id"].unique())])
+    
+    elif split=="traintestval":
+        
+        cases = len(df["case_id"].unique())
+        train_len = int(cases*frac_train)
+        val_len = int(cases*frac_val)
+        test_len = cases-train_len-val_len
+        
+        diction = dict([(name,0) if idx<train_len else (name,1) if idx<train_len+test_len  else (name,2) for idx,name in enumerate(df["case_id"].unique())])
         df.insert(3,"traintest",df["case_id"].map(diction)) # insert traintestlabel 
         
         genomics = df[df.keys()[11:]]
         scaler = StandardScaler()
         scaled_genomics = scaler.fit_transform(genomics)
         df[df.keys()[11:]] = scaled_genomics
-
-        df_train = df[df["traintest"]==1]
-        df_test = df[df["traintest"]==0]
+        
+        df_train = df[df["traintest"]==0]
+        df_test = df[df["traintest"]==1]
+        df_val = df[df["traintest"]==2]
         if save:
-            savename_train = df_path.replace("all_clean.csv.zip",f"_trainsplit.csv")
+            savename_train = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_trainsplit.csv")
             df_train.to_csv(savename_train,index=False)
             
-            savename_test = df_path.replace("all_clean.csv.zip",f"_testsplit.csv")
+            savename_test = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_testsplit.csv")
             df_test.to_csv(savename_test,index=False)
-        return df_train,df_test 
+            
+            savename_val = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_valsplit.csv")
+            df_val.to_csv(savename_val,index=False)
+        return df_train,df_test,df_val
 
 
 def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
