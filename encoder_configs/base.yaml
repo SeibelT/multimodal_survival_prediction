@@ -1,23 +1,26 @@
-wandb_settings:
-        monitoring: 
-        project: 2
-        entity: 0.001
-        name : name
+wandb_settings :
+        monitoring : true
+        entity : tobias-seibel
+        project : Feature_Encoder
+        name : resnet18_survival_test0.2
 train_settings:
         save_dir : /nodes/bevog/work4/seibel/data/testing
-        max_epochs : 20
+        max_epochs : 3
         checkpoint_path : 
-        do_test : 1
+        do_test : true
         default_root_dir : /nodes/bevog/work4/seibel/data/testing
         model_params : 
                 lr : 0.0001
-                channels : 12
-        train_ds_params : 
-                length : 64 
-        test_ds_params : 
-                length : 64
-        trainer_params : 
-                a : abc
-                b : def
+                nbins : 4
+                alpha : 0.2
+        dataset_params : 
+                df_path_train : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_trainsplit.csv
+                df_path_test : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv
+                df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
+                tile_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-TILES/
+                ext : jpg
+                batch_size : 1024
+                 
+        
 encode_settings:
         a : 0 

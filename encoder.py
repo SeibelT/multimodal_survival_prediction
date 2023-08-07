@@ -5,6 +5,8 @@ import torch.multiprocessing as mp
 import yaml
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.tuner import Tuner
+from pytorch_lightning.callbacks import StochasticWeightAveraging
 import wandb
 import os
 
@@ -21,14 +23,15 @@ def train( world_size, train_settings,monitoring):
     default_root_dir = train_settings["default_root_dir"]  
     
     #Data
-    train_loader = RandomModule(train_settings["train_ds_params"]["length"])
-    if do_test:
-        test_loader = RandomModule(train_settings["test_ds_params"]["length"]) #TODO
+    data_module = TileModule(**train_settings["dataset_params"])
+    data_module.setup("fit")
+    training_length = data_module.train_set.__len__()
+    batch_size = train_settings["dataset_params"]["batch_size"]
+    T_steps = training_length //batch_size 
     
     #Model
-    # TODO model to config settings 
-    model = Testnet(**train_settings['model_params'])
-    #model.to(rank)
+    model = Resnet18Surv(**train_settings['model_params'],tsteps=T_steps)
+
 
     #Trainer
     trainer = pl.Trainer(
@@ -37,8 +40,13 @@ def train( world_size, train_settings,monitoring):
         accelerator="gpu",
         strategy='ddp',
         logger=WandbLogger(save_dir=train_settings["save_dir"], log_model=True) if monitoring else False,
-        max_epochs=train_settings['max_epochs']
-    )
+        max_epochs=train_settings['max_epochs'],
+        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2)],
+        
+                        )
+    #tuner =Tuner(trainer)
+    #tuner.scale_batch_size(model, datamodule=data_module, mode="power") not supported for ddp 8pl version 2.0.6
+    #tuner.lr_find(model)
     
     #training task + testing(optional)
     print(("#"*50+"\n")*2,"Settings:")
@@ -46,13 +54,13 @@ def train( world_size, train_settings,monitoring):
     print(("#"*50+"\n")*2,"Start Training!")
     if checkpoint_path is not None:
         print(f"Continue from Checkpointpath: \n {checkpoint_path}")
-        trainer.fit(model, ckpt_path=checkpoint_path)
+        trainer.fit(model, data_module, ckpt_path=checkpoint_path)
     else:
-        trainer.fit(model, train_loader)
+        trainer.fit(model, data_module)
 
     if do_test:
         print(("#"*50+"\n")*2,"Initialize Testing!")
-        trainer.test(model, test_loader)# TODO not working yet 
+        trainer.test(model, data_module) # TODO not working yet 
     print(("#"*50+"\n")*2,"Finished Training!")    
 
 def main():
@@ -88,3 +96,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    torch.cuda.check_error

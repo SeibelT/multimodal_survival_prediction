@@ -1,44 +1,43 @@
 import torch
 from torch import nn
+from torchvision.models import resnet18
+
 import pytorch_lightning as pl
 from torchmetrics import Accuracy
-
+from utils.Aggregation_Utils import Survival_Loss
 # Your custom model
 
 
-class Testnet(pl.LightningModule):
-    def __init__(self,channels,lr):
+class Resnet18Surv(pl.LightningModule):
+    def __init__(self,lr,nbins,alpha,tsteps):
         super().__init__()
         self.lr = lr
+        self.tsteps = tsteps
         self.save_hyperparameters()
-        self.model = nn.Sequential(nn.Conv2d(3, channels, kernel_size=(3, 3), padding='same', bias=True),
-                          nn.AdaptiveAvgPool2d(1),
-                          nn.Flatten(1),
-                          nn.Linear(channels,1),
-                          nn.Flatten(0))
-        self.Acc = Accuracy(task="binary")
-
+        # Model
+        self.resnet18 = resnet18(pretrained=True)
+        self.resnet18.fc = nn.Linear(512, nbins)
+        # Loss
+        self.criterion = Survival_Loss(alpha)
     def forward(self, x):
-        out = self.model(x)
+        out = self.resnet18(x)
         return out
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        logits = self(x)
-        loss = nn.BCEWithLogitsLoss()(logits.float(),y.float())
+        hist_tile,gen, censorship, label,label_cont = batch
+        logits = self(hist_tile)
+        loss = self.criterion(logits,censorship,label)
         self.log("train_loss", loss)
         return loss
 
     def evaluate(self, batch, stage=None):
-        x, y = batch
-        logits = self(x)
-        loss = nn.BCEWithLogitsLoss()(logits.float(),y.float())
-        preds = nn.Sigmoid()(logits)
-        acc = self.Acc(preds, y)
+        hist_tile,gen, censorship, label,label_cont = batch
+        logits = self(hist_tile)
+        loss = self.criterion(logits,censorship,label)
 
         if stage:
             self.log(f"{stage}_loss", loss, prog_bar=True)
-            self.log(f"{stage}_acc", acc, prog_bar=True)
+            #self.log(f"{stage}_acc", acc, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")
@@ -47,16 +46,14 @@ class Testnet(pl.LightningModule):
         self.evaluate(batch, "test")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(
+        optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.hparams.lr,
-            momentum=0.9,
-            weight_decay=5e-4,
-        )
-        steps_per_epoch = 45000 // 64 # fALSE!!!
+            )
+        
         scheduler_dict = {
             "scheduler": torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=steps_per_epoch*self.trainer.max_epochs , eta_min=0, last_epoch=- 1, verbose=False)
+                optimizer, T_max=self.tsteps*self.trainer.max_epochs , eta_min=1e-10, last_epoch=- 1, verbose=False)
                 ,
             "interval": "step",
         }

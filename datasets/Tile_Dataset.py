@@ -10,7 +10,7 @@ import pytorch_lightning as pl
 
 
 
-class RandomModule(pl.LightningDataModule):
+class TileModule(pl.LightningDataModule):
     def __init__(self,df_path_train,df_path_test,df_path_val,tile_path,ext,batch_size=32):
         super().__init__()
         self.df_path_train = df_path_train
@@ -36,13 +36,13 @@ class RandomModule(pl.LightningDataModule):
         self.val_set = TileDataset(df_path=self.df_path_val,tile_path=self.tile_path,ext = self.ext,trainmode = "val",transform=self.transform_eval)
         
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=2)
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size)
+        return DataLoader(self.val_set, batch_size=32,num_workers=2)
 
     def test_dataloader(self):
-        return DataLoader(self.test_set, batch_size=self.batch_size)
+        return DataLoader(self.test_set, batch_size=32,num_workers=2)
 
 
 
@@ -65,8 +65,8 @@ class TileDataset(Dataset):
         df[df["traintest"]==(0 if trainmode=="train" else 1 if trainmode=="test" else 2)]
         
             
-        self.genomics_tensor = torch.Tensor(df_path[df_path.keys()[11:]].to_numpy()).to(torch.float32)
-        self.df_meta = df_path[["slide_id","survival_months_discretized","censorship","survival_months"]]
+        self.genomics_tensor = torch.Tensor(df[df.keys()[11:]].to_numpy()).to(torch.float32)
+        self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]
         
         # Tile Data Frame
         file_list = []
@@ -75,6 +75,7 @@ class TileDataset(Dataset):
             for name in files:
                 file_list.append(os.path.join(root, name))
                 root_list.append(root.split("/")[-1]+".svs")
+
 
         df_tiles = pd.DataFrame({"tilepath":file_list,"slide_id":root_list},)
         df_tiles = df_tiles[df_tiles["tilepath"].str.endswith(ext)]
