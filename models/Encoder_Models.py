@@ -28,6 +28,8 @@ class Resnet18Surv(pl.LightningModule):
         logits = self(hist_tile)
         loss = self.criterion(logits,censorship,label)
         self.log("train_loss", loss)
+        self.log("learning_rate",self.hparams.lr)
+        
         return loss
 
     def evaluate(self, batch, stage=None):

@@ -1,3 +1,4 @@
+mode : trains
 wandb_settings :
         monitoring : true
         entity : tobias-seibel
@@ -19,7 +20,7 @@ train_settings:
                 df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
                 tile_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-TILES/
                 ext : jpg
-                batch_size : 1024
+                batch_size : 256
                  
         
 encode_settings:

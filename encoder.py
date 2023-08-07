@@ -31,14 +31,15 @@ def train( world_size, train_settings,monitoring):
     
     #Model
     model = Resnet18Surv(**train_settings['model_params'],tsteps=T_steps)
-
+    #wandb.watch(model)
 
     #Trainer
     trainer = pl.Trainer(
         default_root_dir=default_root_dir, #  TODO
-        devices=world_size,
+        devices=-1,
         accelerator="gpu",
-        strategy='ddp',
+        num_nodes = 1,
+        strategy="ddp",
         logger=WandbLogger(save_dir=train_settings["save_dir"], log_model=True) if monitoring else False,
         max_epochs=train_settings['max_epochs'],
         callbacks=[StochasticWeightAveraging(swa_lrs=1e-2)],
@@ -63,37 +64,42 @@ def train( world_size, train_settings,monitoring):
         trainer.test(model, data_module) # TODO not working yet 
     print(("#"*50+"\n")*2,"Finished Training!")    
 
-def main():
-    parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
-    parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
-    parser.add_argument("--mode", type=str, required=True, help="train a feature encoder or encode features")
-    args = parser.parse_args()
+def main(conf):
+    #parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
+    #parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
+    #parser.add_argument("--mode", type=str, required=True, help="train a feature encoder or encode features")
+    #args = parser.parse_args()
 
     
-    with open(args.config, 'r') as file:
+    with open(conf, 'r') as file:
         config = yaml.safe_load(file)
         wandb_settings = config["wandb_settings"]
-        ...
+    mode = config["mode"]
+    
     # Initialize wandb
-    if wandb_settings["monitoring"]:
+    if wandb_settings["monitoring"] and (os.environ['SLURM_PROCID']==0):
+        print("Initialize WANDB")
         wandb.init(project=wandb_settings["project"],
                    entity=wandb_settings["entity"],
-                   name=wandb_settings["name"])
+                   name=wandb_settings["name"],
+                   config = config,
+                   save_code = True,
+                   )
 
     # Get the number of available GPUs
     num_gpus = torch.cuda.device_count()
-    print(num_gpus)
+    print(f"World Size:",num_gpus)
     
-    if args.mode=='train':
+    if mode=='train':
         # Run training using Slurm's srun
         train_settings = config["train_settings"]
         #mp.spawn(train, args=(num_gpus, train_settings,wandb_settings["monitoring"]), nprocs=num_gpus, join=True)
         train(num_gpus, train_settings,wandb_settings["monitoring"])
-    elif args.mode=="encode":
+    elif mode=="encode":
         inference_settings = config["encode_settings"]
         ... # TODO
 
 
 if __name__ == "__main__":
-    main()
-    torch.cuda.check_error
+    main("./encoder_configs/base.yaml")
+    
