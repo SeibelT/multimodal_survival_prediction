@@ -65,8 +65,8 @@ class TileDataset(Dataset):
         df[df["traintest"]==(0 if trainmode=="train" else 1 if trainmode=="test" else 2)]
         
             
-        self.genomics_tensor = torch.Tensor(df[df.keys()[11:]].to_numpy()).to(torch.float32)
-        self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]
+        self.genomics_tensor = torch.Tensor(df[df.keys()[11:]].to_numpy()).to(torch.float32) # 11 is hardcoded for this cohort, might differ for other cohorts.
+        self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]  
         
         # Tile Data Frame
         file_list = []

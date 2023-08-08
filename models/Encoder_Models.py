@@ -38,7 +38,7 @@ class Resnet18Surv(pl.LightningModule):
         loss = self.criterion(logits,censorship,label)
 
         if stage:
-            self.log(f"{stage}_loss", loss, prog_bar=True)
+            self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
@@ -53,11 +53,4 @@ class Resnet18Surv(pl.LightningModule):
             lr=self.hparams.lr,
             )
         
-        scheduler_dict = {
-            "scheduler": torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=self.tsteps*self.trainer.max_epochs , eta_min=1e-10, last_epoch=- 1, verbose=False)
-                ,
-            "interval": "step",
-        }
-        
-        return {"optimizer": optimizer, "lr_scheduler": scheduler_dict}
+        return {"optimizer": optimizer}

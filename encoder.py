@@ -39,15 +39,23 @@ def train( world_size, train_settings,monitoring):
         devices=-1,
         accelerator="gpu",
         num_nodes = 1,
-        strategy="ddp",
+        strategy= "auto" if world_size==1 else "ddp",
         logger=WandbLogger(save_dir=train_settings["save_dir"], log_model=True) if monitoring else False,
         max_epochs=train_settings['max_epochs'],
-        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2)],
+        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",)],
         
                         )
-    #tuner =Tuner(trainer)
-    #tuner.scale_batch_size(model, datamodule=data_module, mode="power") not supported for ddp 8pl version 2.0.6
-    #tuner.lr_find(model)
+    
+    if False:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
+        tuner =Tuner(trainer)
+        tuner.scale_batch_size(model, datamodule=data_module, mode="binsearch",) #not supported for ddp 8pl version 2.0.6 -> run on single single gpu 
+        lr_finder = tuner.lr_find(model, datamodule=data_module)
+        print(lr_finder.results)
+        print(lr_finder.suggestion())
+        fig = lr_finder.plot(suggest=True)
+        fig.savefig("./lrplot.png",dpi='figure',format="png")
+
+    
     
     #training task + testing(optional)
     print(("#"*50+"\n")*2,"Settings:")
@@ -64,21 +72,23 @@ def train( world_size, train_settings,monitoring):
         trainer.test(model, data_module) # TODO not working yet 
     print(("#"*50+"\n")*2,"Finished Training!")    
 
-def main(conf):
-    #parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
-    #parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
-    #parser.add_argument("--mode", type=str, required=True, help="train a feature encoder or encode features")
-    #args = parser.parse_args()
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
+    parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
+    parser.add_argument("--mode", type=str, required=True, help="train a feature encoder or encode features")
+    args = parser.parse_args()
     
-    with open(conf, 'r') as file:
+    
+    with open(args.config, 'r') as file:
+    
         config = yaml.safe_load(file)
         wandb_settings = config["wandb_settings"]
-    mode = config["mode"]
+    
     
     # Initialize wandb
-    if wandb_settings["monitoring"] and (os.environ['SLURM_PROCID']==0):
-        print("Initialize WANDB")
+    if wandb_settings["monitoring"] and (int(os.environ['SLURM_PROCID'])==0) :
+        print("Initialize WANDB on ",int(os.environ['SLURM_PROCID']))
         wandb.init(project=wandb_settings["project"],
                    entity=wandb_settings["entity"],
                    name=wandb_settings["name"],
@@ -90,6 +100,9 @@ def main(conf):
     num_gpus = torch.cuda.device_count()
     print(f"World Size:",num_gpus)
     
+    
+    
+    mode = args.mode
     if mode=='train':
         # Run training using Slurm's srun
         train_settings = config["train_settings"]
@@ -98,8 +111,5 @@ def main(conf):
     elif mode=="encode":
         inference_settings = config["encode_settings"]
         ... # TODO
-
-
-if __name__ == "__main__":
-    main("./encoder_configs/base.yaml")
+    
     

@@ -1,4 +1,4 @@
-mode : trains
+mode : train
 wandb_settings :
         monitoring : true
         entity : tobias-seibel
@@ -6,7 +6,7 @@ wandb_settings :
         name : resnet18_survival_test0.2
 train_settings:
         save_dir : /nodes/bevog/work4/seibel/data/testing
-        max_epochs : 3
+        max_epochs : 2
         checkpoint_path : 
         do_test : true
         default_root_dir : /nodes/bevog/work4/seibel/data/testing
