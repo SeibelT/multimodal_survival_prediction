@@ -73,6 +73,8 @@ def train( world_size, train_settings,monitoring):
     print(("#"*50+"\n")*2,"Finished Training!")    
 
 
+    # finish wandb 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")

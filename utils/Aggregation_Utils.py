@@ -59,7 +59,7 @@ class Survival_Loss(nn.Module):
         
         return L_z + (1-self.alpha)*L_censored
 
-def c_index(out_all,c_all,l_all): # TODO to utils 
+def c_index(out_all,c_all,l_all): 
     """
     Variables
     out_all : FloatTensor must be of shape = (N,4)  predicted logits of model 
@@ -68,7 +68,7 @@ def c_index(out_all,c_all,l_all): # TODO to utils
 
     Outputs the c-index score 
     """
-    with torch.no_grad():  # TODO c-index not working yet 
+    with torch.no_grad(): 
         #risk
         h = nn.Sigmoid()(out_all)
         S = torch.cumprod(1-h,dim = -1)
