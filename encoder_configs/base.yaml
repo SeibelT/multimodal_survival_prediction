@@ -7,9 +7,9 @@ wandb_settings :
 train_settings:
         save_dir : /nodes/bevog/work4/seibel/data/testing
         max_epochs : 2
-        checkpoint_path : 
+        checkpoint_path : s
         do_test : true
-        default_root_dir : /nodes/bevog/work4/seibel/data/testing
+        default_root_dir : /home/seibel/modelcheckpoints
         model_params : 
                 lr : 0.0001
                 nbins : 4
