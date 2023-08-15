@@ -5,7 +5,7 @@ from utils.Aggregation_Utils import Survival_Loss
 import pytorch_lightning as pl
 from utils.Encoder_Utils import c_index
 from torchmetrics import Accuracy
-
+from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch
 # Your custom model
 
@@ -26,11 +26,7 @@ class Resnet18Surv(pl.LightningModule):
         
         self.save_hyperparameters()
         
-        #C-index
-        self.logits_all =[]
-        self.l_all = []
-        self.l_con_all =[]
-        self.c_all = []
+        
         
         
     def forward(self, x):
@@ -52,32 +48,11 @@ class Resnet18Surv(pl.LightningModule):
         hist_tile,gen, censorship, label,label_cont = batch
         logits = self(hist_tile)
         loss = self.criterion(logits,censorship,label)
-
-        self.logits_all.append(logits)
-        self.l_all.append(label)
-        self.c_all.append(censorship)
-        self.l_con_all.append(label_cont)
-        
-        
+            
         if stage:
             self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
-    def on_validation_epoch_end(self):
-        h = nn.Sigmoid()(torch.cat(self.logits_all,dim=0))
-        S = torch.cumprod(1-h,dim = -1)
-        risk = -S.sum(dim=1) 
-        notc = (1-torch.cat(self.c_all,dim=0)).cpu().numpy().astype(bool)
-        c_ind = c_index(self.logits_all,self.c_all,self.l_all)
-        #log
-        self.log(f"c_index",c_ind, prog_bar=True)
-        
-        #free memory
-        self.logits_all.clear()
-        self.l_all.clear()
-        self.l_con_all.clear()
-        self.c_all.clear()
-        del h,S,risk,notc
     
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")
@@ -117,125 +92,63 @@ class Classifier_Head(nn.Module):
 
 
 class SupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,mae_training,supervised_surv,multimodal):
+    def __init__(self,lr,nbins,alpha,ckpt_path):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
-        self.frozen_flag = True
+        self.mask_ratio = 0.75
+        self.ids_shuffle = None
+        #ViT 
+        self.model = mae_vit_tiny_patch16()
+        #load weights
+        if ckpt_path is not None:
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            state_dict = {k.replace("module.model.", ""): v for k, v in ckpt["model"].items()}
+            self.model.load_state_dict(state_dict, strict=False)
         
-        # Model
-        if mae_training:
-            self.encoder = ...
-            self.decoder = ...
-            
-            
-        if supervised_surv:
-            self.classification_head =  Classifier_Head(512,d_hidden=256,t_bins=nbins)
-            
-            
-        if multimodal:
-            self.aggregation = ...    
-            
-            
-        # Loss
-        self.criterion_MAE = nn.MSELoss()
-        self.criterionSurv = Survival_Loss(alpha)
         
-        self.save_hyperparameters()
+        self.classification_head =  Classifier_Head(2*192,d_hidden=256,t_bins=nbins)
         
-        #C-index
-        self.logits_all =[]
-        self.l_all = []
-        self.l_con_all =[]
-        self.c_all = []
+        self.criterion = Survival_Loss(alpha)
         
+        self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
         
     def forward(self, x,y):
-        x = self.img2seq(x)
-        if self.hparams.mae_training:
-            unmasked,masked,masktokens,unmasked_idx,masked_idx = self.masking(x)
-            x_enc, x_idx = unmasked, unmasked_idx
-        else:
-            x_enc, x_idx = x, self.regular_idx
-        
-        if self.hparams.multimodal: 
-            x_enc,y_enc = self.split(self.Encoder(torch.cat([self.gen_embedder(y),self.Encoder_Embedding(x_enc)+self.Enc_Pos_Embedding],dim=1))) #check if correct dim
-        else:
-            x_enc = self.Encoder(self.Encoder_Embedding(x_enc)+self.Enc_Pos_Embedding)
-            
-        if self.hparams.mae_training:
-            decoded = self.Decoder(torch.stack([self.Decoder_Embedding(x_enc) +self.Dec_Pos_Embedding(x_idx),masktokens+self.Dec_Pos_Embedding(masked_idx)],dim=1))#check right dim
-            unmasked_out,masked_out = torch.split(decoded)# split via idx 
-            
-        
-        if self.hparams.supervised_surv:
-            if self.hparams.multimodal: 
-                logits = self.classification_head(torch.stack([torch.mean(x_enc,y_enc)],dim=1))
-                return 
-            else:
-                
-            
-            
-        
-        
-            
-        
-        #Encoding    
-        
-        
-        if 
-        
-        
-        
-         
-        out = self.decoder(x)
-        return x,out
+        y = self.y_encoder(y)
+        latent, mask, ids_restore, self.ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y.unsqueeze(1), self.ids_shuffle)
+        latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
+        pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
+        conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+        surv_logits = self.classification_head(conc_latent)
+        return pred,mask,surv_logits
 
     def training_step(self, batch, batch_idx):
         hist_tile,gen, censorship, label,label_cont = batch
-        if self.hparams.mae_training:
-            
-        if self.hparams.multimodal:
-            
+        pred,mask,surv_logits = self(hist_tile,gen)
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
         
         
-        logits = self(hist_tile)
-        loss = self.criterion(logits,censorship,label)
-        self.log("train_loss", loss)
+        
+        loss_surv = self.criterion(surv_logits,censorship,label)
+        self.log("train_loss", loss_MAE+loss_surv)
         self.log("learning_rate",self.hparams.lr)
-        return loss
+        return loss_MAE+loss_surv
     
             
+    
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch
-        logits = self(hist_tile)
-        loss = self.criterion(logits,censorship,label)
-
-        self.logits_all.append(logits)
-        self.l_all.append(label)
-        self.c_all.append(censorship)
-        self.l_con_all.append(label_cont)
+        pred,mask,surv_logits = self(hist_tile,gen)
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
         
         
+        
+        loss_surv = self.criterion(surv_logits,censorship,label)
+            
         if stage:
-            self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
+            self.log(f"{stage}_loss", loss_MAE+loss_surv, prog_bar=True,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
-    def on_validation_epoch_end(self):
-        h = nn.Sigmoid()(torch.cat(self.logits_all,dim=0))
-        S = torch.cumprod(1-h,dim = -1)
-        risk = -S.sum(dim=1) 
-        notc = (1-torch.cat(self.c_all,dim=0)).cpu().numpy().astype(bool)
-        c_ind = c_index(self.logits_all,self.c_all,self.l_all)
-        #log
-        self.log(f"c_index",c_ind, prog_bar=True)
-        
-        #free memory
-        self.logits_all.clear()
-        self.l_all.clear()
-        self.l_con_all.clear()
-        self.c_all.clear()
-        del h,S,risk,notc
     
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")
@@ -245,12 +158,58 @@ class SupViTSurv(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
-            filter(lambda p: p.requires_grad, self.parameters()),
+            self.parameters(),
             lr=self.lr,
             )
         
         return {"optimizer": optimizer}
+    
+    
+class SNN(nn.Module):
+    """ Implementation of SNN as described in 'Pan-cancer integrative histology-genomic analysis via multimodal deep learning' by R.Chen et al 
+    https://pubmed.ncbi.nlm.nih.gov/35944502/ 
+    
+    Variables:
+    d : dimension of molecular vector
+    d_out : dimnesion of embedded output vector 
+    """
+    def __init__(self,d : int,d_out : int = 32,activation="SELU"):
+        super(SNN,self).__init__()
+        
+        
+        self.lin1 = nn.Linear(d,256)
+        
 
+        self.lin2 = nn.Linear(256,256)
+        self.alphadropout1 = nn.AlphaDropout(p=0.5)
+        self.alphadropout2 = nn.AlphaDropout(p=0.5)
+        self.fc = nn.Linear(256,d_out)
+        if activation=="SELU":
+            torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
+            torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
+            torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
+            self.selu1 = nn.SELU()
+            self.selu2 = nn.SELU()
+            self.selu3 = nn.SELU()
+        elif activation=="RELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.ReLU()
+            self.selu2 = nn.ReLU()
+            self.selu3 = nn.ReLU()
+        
+        elif activation=="GELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.GELU()
+            self.selu2 = nn.GELU()
+            self.selu3 = nn.GELU()
 
+    def forward(self,x):
 
-
+        x = self.alphadropout1(self.selu1(self.lin1(x)))
+        x = self.alphadropout2(self.selu2(self.lin2(x)))
+        x = self.fc(x)
+        return self.selu3(x)

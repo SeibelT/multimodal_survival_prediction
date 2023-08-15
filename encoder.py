@@ -9,29 +9,32 @@ from pytorch_lightning.tuner import Tuner
 from pytorch_lightning.callbacks import StochasticWeightAveraging
 import wandb
 import os
-
 from torchvision import datasets, transforms
-
 from models.Encoder_Models import *
 from datasets.Tile_Dataset import *
 
 
 def train( world_size, train_settings,monitoring):
-    #torch.cuda.set_device(rank)
-    checkpoint_path = train_settings["checkpoint_path"]  
+    
     do_test = train_settings["do_test"]  
     default_root_dir = train_settings["default_root_dir"]  
-    
+    checkpoint_path = train_settings["checkpoint_path"] 
     #Data
     data_module = TileModule(**train_settings["dataset_params"])
-    data_module.setup("fit")
-    training_length = data_module.train_set.__len__()
-    batch_size = train_settings["dataset_params"]["batch_size"]
-    T_steps = training_length //batch_size 
+    #data_module.setup("fit")
+    #training_length = data_module.train_set.__len__()
+    #batch_size = train_settings["dataset_params"]["batch_size"]
+    #T_steps = training_length //batch_size 
     
     #Model
-    model = Resnet18Surv(**train_settings['model_params'],tsteps=T_steps)
-    #wandb.watch(model)
+    model =  SupViTSurv(**train_settings["model_params"])
+    
+    #wandb monitoring + watching weights
+    if monitoring:
+        wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
+        wandb_logger.watch(model)
+    
+    
 
     #Trainer
     trainer = pl.Trainer(
@@ -39,11 +42,12 @@ def train( world_size, train_settings,monitoring):
         devices=-1,
         accelerator="gpu",
         num_nodes = 1,
+        max_steps=10,
+        profiler="simple",
         strategy= "auto" if world_size==1 else "ddp",
-        logger=WandbLogger(save_dir=train_settings["save_dir"], log_model=True) if monitoring else False,
-        max_epochs=train_settings['max_epochs'],
+        logger=wandb_logger if monitoring else False,
+        max_epochs=train_settings["max_epochs"],
         callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",)],
-        
                         )
     
     if False:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
@@ -54,8 +58,6 @@ def train( world_size, train_settings,monitoring):
         print(lr_finder.suggestion())
         fig = lr_finder.plot(suggest=True)
         fig.savefig("./lrplot.png",dpi='figure',format="png")
-
-    
     
     #training task + testing(optional)
     print(("#"*50+"\n")*2,"Settings:")
@@ -108,7 +110,6 @@ if __name__ == "__main__":
     if mode=='train':
         # Run training using Slurm's srun
         train_settings = config["train_settings"]
-        #mp.spawn(train, args=(num_gpus, train_settings,wandb_settings["monitoring"]), nprocs=num_gpus, join=True)
         train(num_gpus, train_settings,wandb_settings["monitoring"])
     elif mode=="encode":
         inference_settings = config["encode_settings"]

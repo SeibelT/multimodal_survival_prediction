@@ -3,7 +3,7 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : resnet18_survival_test0.3
+        name : resnet18_survival_test0.2
 train_settings:
         save_dir : /nodes/bevog/work4/seibel/data/testing
         max_epochs : 2
@@ -14,12 +14,12 @@ train_settings:
                 lr : 0.0001
                 nbins : 4
                 alpha : 0.2
+                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
         dataset_params : 
                 df_path_train : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_trainsplit.csv
                 df_path_test : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv
                 df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
                 tile_df_path : /nodes/bevog/work4/seibel/multimodal_survival_prediction/datasets/DF_TCGA-BRCA-TIILES-NORM.csv
-                
                 batch_size : 256
                  
         

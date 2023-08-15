@@ -11,13 +11,13 @@ import pytorch_lightning as pl
 
 
 class TileModule(pl.LightningDataModule):
-    def __init__(self,df_path_train,df_path_test,df_path_val,tile_path,ext,batch_size=32):
+    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size=32):
         super().__init__()
         self.df_path_train = df_path_train
         self.df_path_test = df_path_test
         self.df_path_val = df_path_val
-        self.tile_path=tile_path
-        self.ext=ext
+        self.tile_df_path=tile_df_path
+        
         self.batch_size = batch_size 
         self.transform_train =  transforms.Compose([transforms.ToTensor(),
                                                     transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
@@ -31,24 +31,24 @@ class TileModule(pl.LightningDataModule):
                                                    )
         
     def setup(self, stage):
-        self.train_set = TileDataset(df_path=self.df_path_train,tile_path=self.tile_path,ext=self.ext,trainmode = "train",transform=self.transform_train)
-        self.test_set = TileDataset(df_path=self.df_path_test,tile_path=self.tile_path,ext = self.ext,trainmode = "test",transform=self.transform_eval)
-        self.val_set = TileDataset(df_path=self.df_path_val,tile_path=self.tile_path,ext = self.ext,trainmode = "val",transform=self.transform_eval)
+        self.train_set = TileDataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train)
+        self.test_set = TileDataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
+        self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
         
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=2)
+        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=6,pin_memory=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=2)
+        return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=6,pin_memory=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=2)
+        return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=6,pin_memory=True)
 
 
 
 
 class TileDataset(Dataset):
-    def __init__(self,df_path,tile_path,ext,trainmode,transform):
+    def __init__(self,df_path,tile_df_path,trainmode,transform):
         """Custom Dataset for Feature Extractor Finetuning for Survival Analysis 
 
         Args:
@@ -69,16 +69,7 @@ class TileDataset(Dataset):
         self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]  
         
         # Tile Data Frame
-        file_list = []
-        root_list = []
-        for root, dirs, files in os.walk(tile_path, topdown=False):
-            for name in files:
-                file_list.append(os.path.join(root, name))
-                root_list.append(root.split("/")[-1]+".svs")
-
-
-        df_tiles = pd.DataFrame({"tilepath":file_list,"slide_id":root_list},)
-        df_tiles = df_tiles[df_tiles["tilepath"].str.endswith(ext)]
+        df_tiles = pd.read_csv(tile_df_path)
         
         # add slide_id to index mapping
         diction= dict([(name,idx) for idx,name in enumerate(self.df_meta["slide_id"]) ]) 
