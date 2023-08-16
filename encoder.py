@@ -13,6 +13,14 @@ from torchvision import datasets, transforms
 from models.Encoder_Models import *
 from datasets.Tile_Dataset import *
 
+from torchvision.transforms import RandomHorizontalFlip,RandomVerticalFlip
+from ffcv_pl.ffcv_utils.utils import FFCVPipelineManager
+from ffcv.fields.basics import IntDecoder,FloatDecoder,NDArrayDecoder
+from ffcv.fields.rgb_image import RandomResizedCropRGBImageDecoder, CenterCropRGBImageDecoder,SimpleRGBImageDecoder
+from ffcv.loader import OrderOption
+from ffcv.transforms import ToTensor, ToTorchImage
+from ffcv_pl.data_loading import FFCVDataModule
+from ffcv_pl.ffcv_utils.augmentations import DivideImage255
 
 def train( world_size, train_settings,monitoring):
     
@@ -20,7 +28,16 @@ def train( world_size, train_settings,monitoring):
     default_root_dir = train_settings["default_root_dir"]  
     checkpoint_path = train_settings["checkpoint_path"] 
     #Data
-    data_module = TileModule(**train_settings["dataset_params"])
+    if train_settings["ffcv"]:
+        train_manager = getFFCVPipelineManager("test") # TODO must change back 
+        test_manager = getFFCVPipelineManager("val") # TODO must change back 
+        val_manager = getFFCVPipelineManager("val") # TODO must change back 
+        
+        data_module = FFCVDataModule(batch_size=256, workers=6, train_manager=train_manager, val_manager=val_manager,test_manager=test_manager,
+                                 is_dist=True)
+            
+    else:
+        data_module = TileModule(**train_settings["dataset_params"])
     #data_module.setup("fit")
     #training_length = data_module.train_set.__len__()
     #batch_size = train_settings["dataset_params"]["batch_size"]
@@ -39,10 +56,10 @@ def train( world_size, train_settings,monitoring):
     #Trainer
     trainer = pl.Trainer(
         default_root_dir=default_root_dir, #  TODO
-        devices=-1,
+        devices=-1 if world_size==1 else 1,
         accelerator="gpu",
         num_nodes = 1,
-        max_steps=10,
+        max_steps=30,
         profiler="simple",
         strategy= "auto" if world_size==1 else "ddp",
         logger=wandb_logger if monitoring else False,
@@ -57,7 +74,7 @@ def train( world_size, train_settings,monitoring):
         print(lr_finder.results)
         print(lr_finder.suggestion())
         fig = lr_finder.plot(suggest=True)
-        fig.savefig("./lrplot.png",dpi='figure',format="png")
+        fig.savefig("./lrplot_survMAE.png",dpi='figure',format="png")
     
     #training task + testing(optional)
     print(("#"*50+"\n")*2,"Settings:")
@@ -76,6 +93,51 @@ def train( world_size, train_settings,monitoring):
 
 
     # finish wandb 
+def getFFCVPipelineManager(mode):
+    pipeline_transforms=[
+
+                                            # tile pipeline
+                                            [SimpleRGBImageDecoder(),
+                                             ToTensor(),
+                                             ToTorchImage(),
+                                             DivideImage255(dtype=torch.float32),
+                                             RandomHorizontalFlip(p=0.5),RandomVerticalFlip(p=0.5)],
+                                            
+                                            # genomics pipeline
+                                            [NDArrayDecoder(),
+                                             ToTensor()
+                                             ],
+                                            
+                                            # censorship pipeline
+                                            [IntDecoder(),
+                                             ToTensor()
+                                             ],
+                                            
+                                            # label pipeline
+                                            [IntDecoder(),
+                                             ToTensor()
+                                             ],
+                                            
+                                            # label cont pipeline
+                                            [FloatDecoder(),
+                                             ToTensor()
+                                             ],
+                                            
+                                            
+                                        ]
+    if mode=="train":
+        return FFCVPipelineManager("/globalwork/seibel/beton_ds/tile_survival_train.beton",
+                                   pipeline_transforms=pipeline_transforms,
+                                   ordering=OrderOption.RANDOM)  # random ordering for training
+
+    if mode=="test":
+        return FFCVPipelineManager("/globalwork/seibel/beton_ds/tile_survival_test.beton",  # previously defined using dataset_creation.py
+                                   pipeline_transforms=pipeline_transforms,
+                                   ordering=OrderOption.RANDOM)  # random ordering for training
+    if mode=="val":
+        return FFCVPipelineManager("/globalwork/seibel/beton_ds/tile_survival_val.beton",  # previously defined using dataset_creation.py
+                                   pipeline_transforms=pipeline_transforms,
+                                   ordering=OrderOption.RANDOM)  # random ordering for training
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")

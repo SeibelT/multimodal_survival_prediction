@@ -5,8 +5,9 @@ wandb_settings :
         project : Feature_Encoder
         name : resnet18_survival_test0.2
 train_settings:
+        ffcv : true
         save_dir : /nodes/bevog/work4/seibel/data/testing
-        max_epochs : 2
+        max_epochs : 10
         checkpoint_path : 
         do_test : false
         default_root_dir : /home/seibel/modelcheckpoints
@@ -20,7 +21,7 @@ train_settings:
                 df_path_test : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv
                 df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
                 tile_df_path : /nodes/bevog/work4/seibel/multimodal_survival_prediction/datasets/DF_TCGA-BRCA-TIILES-NORM.csv
-                batch_size : 256
+                batch_size : 512
                  
         
 encode_settings:

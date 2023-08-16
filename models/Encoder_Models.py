@@ -98,6 +98,7 @@ class SupViTSurv(pl.LightningModule):
         self.nbins = nbins
         self.mask_ratio = 0.75
         self.ids_shuffle = None
+        self.save_hyperparameters()
         #ViT 
         self.model = mae_vit_tiny_patch16()
         #load weights
@@ -115,7 +116,7 @@ class SupViTSurv(pl.LightningModule):
         
     def forward(self, x,y):
         y = self.y_encoder(y)
-        latent, mask, ids_restore, self.ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y.unsqueeze(1), self.ids_shuffle)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y.unsqueeze(1), self.ids_shuffle)
         latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
         pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
         conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)

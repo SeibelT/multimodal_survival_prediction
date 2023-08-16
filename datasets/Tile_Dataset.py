@@ -90,6 +90,6 @@ class TileDataset(Dataset):
         
         label = torch.tensor(self.df_meta.iloc[slide_idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df_meta.iloc[slide_idx, 2]).type(torch.int64)
-        label_cont = torch.tensor(self.df_meta.iloc[slide_idx,3]).type(torch.int64)
-        return tile, self.genomics_tensor[slide_idx], censorship, label,label_cont
+        label_cont = torch.tensor(self.df_meta.iloc[slide_idx,3]).type(torch.float32)
+        return (tile, self.genomics_tensor[slide_idx], censorship, label,label_cont)
         
