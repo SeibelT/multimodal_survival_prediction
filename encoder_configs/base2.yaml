@@ -1,16 +1,20 @@
 mode : train
 wandb_settings :
-        monitoring : true
+        monitoring : false
         entity : tobias-seibel
         project : Feature_Encoder
-        name : resnet18_survival_test0.2
+        name : SurvMAE_test0.1
 train_settings:
         ffcv : true
+        model_name : SupViTSurv
         save_dir : /nodes/bevog/work4/seibel/data/testing
         max_epochs : 10
         checkpoint_path : 
         do_test : false
         default_root_dir : /home/seibel/modelcheckpoints
+        max_steps : 30
+        profiler : simple
+        tune : false
         model_params : 
                 lr : 0.0001
                 nbins : 4
@@ -22,6 +26,7 @@ train_settings:
                 df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
                 tile_df_path : /nodes/bevog/work4/seibel/multimodal_survival_prediction/datasets/DF_TCGA-BRCA-TIILES-NORM.csv
                 batch_size : 512
+                num_workers : 6
                  
         
 encode_settings:

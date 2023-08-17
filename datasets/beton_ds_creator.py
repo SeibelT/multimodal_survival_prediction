@@ -63,7 +63,7 @@ def main(trainmode = "val"):
     df_path_test = "/nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv"
     df_path_val = "/nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv"
     tile_df_path = "/nodes/bevog/work4/seibel/multimodal_survival_prediction/datasets/DF_TCGA-BRCA-TIILES-NORM.csv"
-    ####################
+    
     if trainmode == "test":
         safe_path = "/globalwork/seibel/beton_ds/tile_survival_test.beton"
         image_label_dataset = TileDataset(df_path_test,tile_df_path,trainmode)
@@ -73,7 +73,7 @@ def main(trainmode = "val"):
     if trainmode == "val":
         safe_path = "/globalwork/seibel/beton_ds/tile_survival_val.beton"
         image_label_dataset = TileDataset(df_path_val,tile_df_path,trainmode)
-    ####################
+    
     
     
     # 2. Optional: create Field objects.
@@ -89,5 +89,5 @@ def main(trainmode = "val"):
 
 
 if __name__ == '__main__':
-
-    main(trainmode = "val")
+    #main(trainmode = "train") remove comment before running
+    ...

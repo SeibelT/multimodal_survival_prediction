@@ -9,7 +9,7 @@ import multiprocessing
 
 from models.Aggregation_Models import *
 from trainer.Aggregation_Trainer import *
-from datasets.Aggregation_Dataset import *
+from datasets.Aggregation_DS import *
 
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))

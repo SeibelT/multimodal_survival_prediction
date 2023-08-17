@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 from torchvision.models import resnet18
-from utils.Aggregation_Utils import Survival_Loss
+
 import pytorch_lightning as pl
-from utils.Encoder_Utils import c_index
+from utils.Encoder_Utils import c_index,Survival_Loss
 from torchmetrics import Accuracy
 from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch

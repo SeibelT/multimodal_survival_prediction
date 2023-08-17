@@ -34,12 +34,12 @@ class HistGen_Dataset(Dataset):
      
     def __getitem__(self,idx):
         
-        tensor_path =os.path.join(self.data_path, self.df.iloc[idx, 0].replace(".svs",".h5")) 
+        tensor_path =os.path.join(self.data_path, self.df.iat[idx, 0].replace(".svs",".h5")) 
         tensor_file =h5py.File(tensor_path, "r")
         tensor_file = torch.tensor(tensor_file["feats"][:]).to(torch.float32)
-        label = torch.tensor(self.df.iloc[idx, 1]).type(torch.int64)
-        censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int64)
-        label_cont = torch.tensor(self.df.iloc[idx,3]).type(torch.float32)
+        label = torch.tensor(self.df.iat[idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df.iat[idx, 2]).type(torch.int64)
+        label_cont = torch.tensor(self.df.iat[idx,3]).type(torch.float32)
         return tensor_file, self.genomics_tensor[idx], censorship,  label,label_cont
 
         
@@ -70,9 +70,9 @@ class Gen_Dataset(Dataset):
      
     def __getitem__(self,idx):
         
-        label = torch.tensor(self.df.iloc[idx, 1]).type(torch.int64)
-        censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int64)
-        label_cont = torch.tensor(self.df.iloc[idx,3]).type(torch.float32)
+        label = torch.tensor(self.df.iat[idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df.iat[idx, 2]).type(torch.int64)
+        label_cont = torch.tensor(self.df.iat[idx,3]).type(torch.float32)
         return self.genomics_tensor[idx], censorship,  label,label_cont
 
         
@@ -95,13 +95,13 @@ class Hist_Dataset(Dataset):
         return len(self.df)
 
     def __getitem__(self,idx):
-        tensor_path =os.path.join(self.data_path, self.df.iloc[idx, 0].replace(".svs",".h5")) 
+        tensor_path =os.path.join(self.data_path, self.df.iat[idx, 0].replace(".svs",".h5")) 
         tensor_file =h5py.File(tensor_path, "r")
         tensor_file = torch.tensor(tensor_file["feats"][:]).to(torch.float32)
         
-        label = torch.tensor(self.df.iloc[idx, 1]).type(torch.int64)
-        censorship = torch.tensor(self.df.iloc[idx, 2]).type(torch.int64)
-        label_cont = torch.tensor(self.df.iloc[idx,3]).type(torch.float32)
+        label = torch.tensor(self.df.iat[idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df.iat[idx, 2]).type(torch.int64)
+        label_cont = torch.tensor(self.df.iat[idx,3]).type(torch.float32)
         return tensor_file, censorship,  label,label_cont
 
         

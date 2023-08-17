@@ -11,13 +11,13 @@ import pytorch_lightning as pl
 
 
 class TileModule(pl.LightningDataModule):
-    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size=32):
+    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size,num_workers,**kwargs):
         super().__init__()
         self.df_path_train = df_path_train
         self.df_path_test = df_path_test
         self.df_path_val = df_path_val
         self.tile_df_path=tile_df_path
-        
+        self.num_workers = num_workers
         self.batch_size = batch_size 
         self.transform_train =  transforms.Compose([transforms.ToTensor(),
                                                     transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
@@ -36,13 +36,13 @@ class TileModule(pl.LightningDataModule):
         self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
         
     def train_dataloader(self):
-        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=6,pin_memory=True)
+        return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=self.num_workers,pin_memory=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=6,pin_memory=True)
+        return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=6,pin_memory=True)
+        return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=True)
 
 
 
@@ -60,7 +60,7 @@ class TileDataset(Dataset):
         super(TileDataset,self).__init__()
         #Genomic Tensor and Meta Dataframe
         df = pd.read_csv(df_path) 
-
+        
         assert trainmode in ["train","test","val"], "Dataset mode not known"
         df[df["traintest"]==(0 if trainmode=="train" else 1 if trainmode=="test" else 2)]
         
@@ -72,7 +72,7 @@ class TileDataset(Dataset):
         df_tiles = pd.read_csv(tile_df_path)
         
         # add slide_id to index mapping
-        diction= dict([(name,idx) for idx,name in enumerate(self.df_meta["slide_id"]) ]) 
+        diction= dict([(name,idx) for idx,name in enumerate(self.df_meta["slide_id"]) ]) #since slide_id is unique 
         df_tiles.insert(2,"slideid_idx",df_tiles["slide_id"].map(diction))
         df_tiles = df_tiles.dropna()
         df_tiles.slideid_idx = df_tiles.slideid_idx.astype(int)
@@ -84,12 +84,12 @@ class TileDataset(Dataset):
         return len(self.df_tiles)
     def __getitem__(self,idx):
         
-        tile_path,_,slide_idx = self.df_tiles.iloc[idx]
+        tile_path,slide_idx = self.df_tiles.iat[idx,0],self.df_tiles.iat[idx,2]
         tile = Image.open(tile_path)
         tile = self.transforms(tile)
         
-        label = torch.tensor(self.df_meta.iloc[slide_idx, 1]).type(torch.int64)
-        censorship = torch.tensor(self.df_meta.iloc[slide_idx, 2]).type(torch.int64)
-        label_cont = torch.tensor(self.df_meta.iloc[slide_idx,3]).type(torch.float32)
+        label = torch.tensor(self.df_meta.iat[slide_idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
+        label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
         return (tile, self.genomics_tensor[slide_idx], censorship, label,label_cont)
         

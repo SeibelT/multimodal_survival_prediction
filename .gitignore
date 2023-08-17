@@ -11,3 +11,4 @@ utils.pyc
 *.out
 *.sh
 datasets/DF_TCGA-BRCA-TIILES-NORM.csv
+enc.ipynb
