@@ -26,11 +26,11 @@ def c_index(logits_all,c_all,l_all):
     return c_index
 
 class Survival_Loss(nn.Module):
-    def __init__(self,alpha,eps = 1e-7):
+    def __init__(self,alpha,ffcv,eps = 1e-7):
         super(Survival_Loss, self).__init__()
         self.alpha = alpha
         self.eps= eps
-    
+        self.ffcv = ffcv
     def forward(self,out,c,t):
         """
         'Bias in Cross-Entropy-Based Training of Deep Survival Networks' by S.Zadeh and M.Schmid 
@@ -47,7 +47,8 @@ class Survival_Loss(nn.Module):
         h = nn.Sigmoid()(out) #   Hazard function 
         S = torch.cumprod(1-h,dim = -1)  # Survival function
         
-        t = t.unsqueeze(-1)
+        if not self.ffcv:
+            t = t.unsqueeze(-1)
         S_bar = torch.cat((torch.ones_like(t,device=t.device),S),dim=-1) # padded survival function to get acess to the previous time window 
 
         # gathering the probabilty within the bin with the ground truth index for hazard,survival and padded survival 

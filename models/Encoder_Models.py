@@ -92,7 +92,7 @@ class Classifier_Head(nn.Module):
 
 
 class SupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,ckpt_path):
+    def __init__(self,lr,nbins,alpha,ckpt_path,ffcv):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -110,7 +110,7 @@ class SupViTSurv(pl.LightningModule):
         
         self.classification_head =  Classifier_Head(2*192,d_hidden=256,t_bins=nbins)
         
-        self.criterion = Survival_Loss(alpha)
+        self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         
         self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
         
@@ -126,28 +126,25 @@ class SupViTSurv(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         hist_tile,gen, censorship, label,label_cont = batch
         pred,mask,surv_logits = self(hist_tile,gen)
+        
         loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
-        
-        
-        
         loss_surv = self.criterion(surv_logits,censorship,label)
-        self.log("train_loss", loss_MAE+loss_surv)
+        
+        self.log("train_MAEloss", loss_MAE)
+        self.log("train_Survloss",loss_surv)
         self.log("learning_rate",self.hparams.lr)
         return loss_MAE+loss_surv
-    
-            
     
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch
         pred,mask,surv_logits = self(hist_tile,gen)
+        
         loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
-        
-        
-        
         loss_surv = self.criterion(surv_logits,censorship,label)
             
         if stage:
-            self.log(f"{stage}_loss", loss_MAE+loss_surv, prog_bar=True,sync_dist=True)
+            self.log(f"{stage}mae_loss", loss_MAE,sync_dist=True)
+            self.log(f"{stage}surv_loss", loss_surv,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
     

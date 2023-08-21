@@ -1,22 +1,23 @@
 mode : train
 wandb_settings :
-        monitoring : false
+        monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : SurvMAE_test0.1
+        name : SurvMAE_test0.2_20epochs
 train_settings:
-        ffcv : true
+        ffcv : false
         model_name : SupViTSurv
         save_dir : /nodes/bevog/work4/seibel/data/testing
-        max_epochs : 10
+        max_epochs : 20
         checkpoint_path : 
-        do_test : false
+        do_test : true
         default_root_dir : /home/seibel/modelcheckpoints
-        max_steps : 30
-        profiler : simple
+        max_steps : -1
+        profiler : #simple
+        log_every_n_steps : 500
         tune : false
         model_params : 
-                lr : 0.0001
+                lr : 0.001
                 nbins : 4
                 alpha : 0.2
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
@@ -24,9 +25,10 @@ train_settings:
                 df_path_train : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_trainsplit.csv
                 df_path_test : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv
                 df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
-                tile_df_path : /nodes/bevog/work4/seibel/multimodal_survival_prediction/datasets/DF_TCGA-BRCA-TIILES-NORM.csv
+                tile_df_path : /nodes/bevog/work4/seibel/data/DF_TCGA-BRCA-TIILES-NORM.csv
                 batch_size : 512
                 num_workers : 6
+                
                  
         
 encode_settings:

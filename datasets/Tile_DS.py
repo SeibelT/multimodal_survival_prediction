@@ -5,7 +5,6 @@ from PIL import Image
 from torchvision import transforms
 from utils.Aggregation_Utils import *
 from torch.utils.data import DataLoader,Dataset
-
 import pytorch_lightning as pl
 
 
@@ -78,7 +77,7 @@ class TileDataset(Dataset):
         df_tiles.slideid_idx = df_tiles.slideid_idx.astype(int)
         self.df_tiles = df_tiles
         
-        # TODO transforms 
+        
         self.transforms = transform
     def __len__(self):
         return len(self.df_tiles)

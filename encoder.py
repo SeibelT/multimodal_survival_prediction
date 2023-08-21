@@ -20,17 +20,17 @@ def train(world_size, train_settings, monitoring):
     checkpoint_path = train_settings["checkpoint_path"] 
     #Data
     if train_settings["ffcv"]:
-        data_module = ffcvmodule(**train_settings["dataset_params"])
+        data_module = ffcvmodule(**train_settings["dataset_params"],is_dist=True if world_size>1 else False)
     else:
         data_module = TileModule(**train_settings["dataset_params"])
         
     #Model
-    model =  globals()[train_settings["model_name"]](**train_settings["model_params"])
+    model =  globals()[train_settings["model_name"]](ffcv = train_settings["ffcv"],**train_settings["model_params"])
     
     #wandb monitoring + watching weights
     if monitoring:
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
-        wandb_logger.watch(model)
+        wandb_logger.watch(model,log_freq=2*train_settings["log_every_n_steps"],log="all")
     
     #Trainer
     if world_size>1:
@@ -38,6 +38,7 @@ def train(world_size, train_settings, monitoring):
             default_root_dir = default_root_dir, #  TODO
             devices = 1 if world_size==1 else -1,
             accelerator = "gpu",
+            log_every_n_steps=train_settings["log_every_n_steps"],
             num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
             max_steps = train_settings["max_steps"],
             profiler = train_settings["profiler"],
@@ -50,11 +51,13 @@ def train(world_size, train_settings, monitoring):
         trainer = pl.Trainer(
         default_root_dir=default_root_dir, 
         accelerator="gpu",
+        devices=1,
+        log_every_n_steps=train_settings["log_every_n_steps"],
         max_steps=train_settings["max_steps"],
         profiler=train_settings["profiler"],
         logger=wandb_logger if monitoring else False,
         max_epochs=train_settings["max_epochs"],
-        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",)],
+        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=110)],
                         )
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
@@ -80,9 +83,10 @@ def train(world_size, train_settings, monitoring):
         print(("#"*50+"\n")*2,"Initialize Testing!")
         trainer.test(model, data_module) # TODO not working yet 
     print(("#"*50+"\n")*2,"Finished Training!")    
-
-
+    
     # finish wandb 
+    if monitoring:
+        wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
@@ -104,18 +108,18 @@ if __name__ == "__main__":
         if  (int(os.environ['SLURM_PROCID'])==0):
             print("Initialize WANDB on ",int(os.environ['SLURM_PROCID']))
             wandb.init(project=wandb_settings["project"],
-                entity=wandb_settings["entity"],
-                name=wandb_settings["name"],
-                config = config,
-                save_code = True,
-                )
+                       entity=wandb_settings["entity"],
+                       name=wandb_settings["name"],
+                       config = config,
+                       save_code = True,
+                       )
     elif wandb_settings["monitoring"] and not slurm:
         wandb.init(project=wandb_settings["project"],
-                entity=wandb_settings["entity"],
-                name=wandb_settings["name"],
-                config = config,
-                save_code = True,
-                )
+                   entity=wandb_settings["entity"],
+                   name=wandb_settings["name"],
+                   config = config,
+                   save_code = True,
+                   )
     # Get the number of available GPUs
     num_gpus = torch.cuda.device_count() if slurm else 1 # multi gpu only on slurm
     print(f"World Size:",num_gpus)
