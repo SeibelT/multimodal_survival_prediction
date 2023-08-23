@@ -12,7 +12,7 @@ import os
 
 from models.Encoder_Models import *
 from datasets.Tile_DS import *
-from datasets.Tile_DS_ffcv import ffcvmodule
+
 
 def train(world_size, train_settings, monitoring):
     do_test = train_settings["do_test"]  
@@ -20,6 +20,7 @@ def train(world_size, train_settings, monitoring):
     checkpoint_path = train_settings["checkpoint_path"] 
     #Data
     if train_settings["ffcv"]:
+        from datasets.Tile_DS_ffcv import ffcvmodule
         data_module = ffcvmodule(**train_settings["dataset_params"],is_dist=True if world_size>1 else False)
     else:
         data_module = TileModule(**train_settings["dataset_params"])
@@ -30,13 +31,14 @@ def train(world_size, train_settings, monitoring):
     #wandb monitoring + watching weights
     if monitoring:
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
-        wandb_logger.watch(model,log_freq=2*train_settings["log_every_n_steps"],log="all")
+        if train_settings["monitor_weights_gradients"]:
+            wandb_logger.watch(model,log_freq=2*train_settings["log_every_n_steps"],log="all")
     
     #Trainer
     if world_size>1:
         trainer = pl.Trainer(
             default_root_dir = default_root_dir, #  TODO
-            devices = 1 if world_size==1 else -1,
+            devices = world_size,
             accelerator = "gpu",
             log_every_n_steps=train_settings["log_every_n_steps"],
             num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),

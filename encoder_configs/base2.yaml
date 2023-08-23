@@ -3,7 +3,7 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : SurvMAE_test0.2_20epochs
+        name : SurvMAE_test0.2_20epochs_2gpus
 train_settings:
         ffcv : false
         model_name : SupViTSurv
@@ -13,19 +13,20 @@ train_settings:
         do_test : true
         default_root_dir : /home/seibel/modelcheckpoints
         max_steps : -1
+        monitor_weights_gradients : false
         profiler : #simple
         log_every_n_steps : 500
         tune : false
         model_params : 
-                lr : 0.001
+                lr : 0.002
                 nbins : 4
                 alpha : 0.2
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
         dataset_params : 
-                df_path_train : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_trainsplit.csv
-                df_path_test : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_testsplit.csv
-                df_path_val : /nodes/bevog/work4/seibel/PORPOISE/datasets_csv/tcga_brca__4bins_valsplit.csv
-                tile_df_path : /nodes/bevog/work4/seibel/data/DF_TCGA-BRCA-TIILES-NORM.csv
+                df_path_train : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv
+                df_path_test : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv
+                df_path_val : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv
+                tile_df_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
                 batch_size : 512
                 num_workers : 6
                 

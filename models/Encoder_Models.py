@@ -92,7 +92,7 @@ class Classifier_Head(nn.Module):
 
 
 class SupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,ckpt_path,ffcv):
+    def __init__(self,lr,nbins,alpha,ckpt_path=None,ffcv=False,encode_gen=True):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -113,6 +113,8 @@ class SupViTSurv(pl.LightningModule):
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         
         self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
+        #prediction
+        self.encode_gen = encode_gen
         
     def forward(self, x,y):
         y = self.y_encoder(y)
@@ -146,6 +148,22 @@ class SupViTSurv(pl.LightningModule):
             self.log(f"{stage}mae_loss", loss_MAE,sync_dist=True)
             self.log(f"{stage}surv_loss", loss_surv,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
+        
+    
+    def predict_step(self, batch, batch_idx,mask_ratio=0.8):
+        if self.encode_gen:
+            x,y, coords = batch
+            y = self.y_encoder(y)
+            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y.unsqueeze(1), self.ids_shuffle)
+            latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
+            conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+            return latent_x,conc_latent,coords,ids_restore
+        else:
+            x,y, coords = batch
+            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
+            #latent = torch.mean(latent,dim=1)
+            return latent,coords,ids_restore
+        
         
     
     def validation_step(self, batch, batch_idx):

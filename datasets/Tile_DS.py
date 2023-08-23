@@ -42,6 +42,9 @@ class TileModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=True)
+    
+    def predict_dataloader(self):
+        return ... # TODO
 
 
 
@@ -91,4 +94,5 @@ class TileDataset(Dataset):
         censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
         return (tile, self.genomics_tensor[slide_idx], censorship, label,label_cont)
+        
         
