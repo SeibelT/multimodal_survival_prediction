@@ -18,7 +18,7 @@ train_settings:
         log_every_n_steps : 500
         tune : false
         model_params : 
-                lr : 0.002
+                lr : 0.0005
                 nbins : 4
                 alpha : 0.2
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar

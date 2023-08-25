@@ -7,6 +7,7 @@ from utils.Encoder_Utils import c_index,Survival_Loss
 from torchmetrics import Accuracy
 from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch
+import h5py
 # Your custom model
 
 
@@ -150,7 +151,7 @@ class SupViTSurv(pl.LightningModule):
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
     
-    def predict_step(self, batch, batch_idx,mask_ratio=0.8):
+    def oldpredstp(self, batch, batch_idx,mask_ratio=0.8):
         if self.encode_gen:
             x,y, coords = batch
             y = self.y_encoder(y)
@@ -163,8 +164,24 @@ class SupViTSurv(pl.LightningModule):
             latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
             #latent = torch.mean(latent,dim=1)
             return latent,coords,ids_restore
+    
+    def predict_step(self, batch, batch_idx,mask_ratio=0):
+        x,y= batch
         
+        if self.encode_gen:
+            y = self.y_encoder(y)
+            latent_xy, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y.unsqueeze(1), self.ids_shuffle)
+            latent_x,latent_y = torch.split(latent_xy,split_size_or_sections=[latent_xy.size(1)-1,1],dim=1)
+            conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+            latent = conc_latent
+            
+        else:
+            
+            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
+            latent = torch.mean(latent,dim=1)
         
+        return (latent)
+            
     
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")
