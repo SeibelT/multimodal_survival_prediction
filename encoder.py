@@ -12,7 +12,7 @@ import os
 
 from models.Encoder_Models import *
 from datasets.Tile_DS import *
-
+from utils.Encoder_Utils import create_feature_ds
 
 def train(world_size, train_settings, monitoring):
     do_test = train_settings["do_test"]  
@@ -90,6 +90,28 @@ def train(world_size, train_settings, monitoring):
     if monitoring:
         wandb.finish()
 
+def encode(**kargs):
+    save_path = inference_settings["save_path"] 
+    new_ds_name = inference_settings["new_ds_name"] 
+    mycheckpnt = inference_settings["mycheckpnt"]  # TODO rename this->?  and ckpt_path-> pretrainedMAEI1K_path or something
+    encode_gen = inference_settings["encode_gen"]
+    ckpt_path = inference_settings["ckpt_path"]
+    #model =  SupViTSurv(lr=0.01,nbins=4,alpha=0.1,ckpt_path=ckpt_path,ffcv=False,encode_gen=encode_gen)
+    model =  globals()[inference_settings["model_name"]](ffcv = False,encode_gen=encode_gen,ckpt_path=ckpt_path,**inference_settings["model_params"])
+    if mycheckpnt is not None:
+        model.load_from_checkpoint(mycheckpnt)
+
+
+    transform = transform = transforms.Compose([transforms.ToTensor(),
+                                            transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
+                                            ]
+                                        )
+    df_tile_slide_path = inference_settings["df_tile_slide_path"]
+    df_data_path = inference_settings["df_data_path"]
+    cntd=inference_settings["cntd"]
+
+    create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen=encode_gen,cntd=cntd)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")
     parser.add_argument("--config", type=str, required=True, help="Path to the configuration file.")
@@ -106,7 +128,7 @@ if __name__ == "__main__":
     slurm = True if "SLURM_JOB_ID" in os.environ else False 
     
     #Wandb
-    if wandb_settings["monitoring"] and slurm:
+    if wandb_settings["monitoring"] and slurm and not (args.mode=="encode"):
         if  (int(os.environ['SLURM_PROCID'])==0):
             print("Initialize WANDB on ",int(os.environ['SLURM_PROCID']))
             wandb.init(project=wandb_settings["project"],
@@ -115,7 +137,7 @@ if __name__ == "__main__":
                        config = config,
                        save_code = True,
                        )
-    elif wandb_settings["monitoring"] and not slurm:
+    elif wandb_settings["monitoring"] and not slurm and not (args.mode=="encode"):
         wandb.init(project=wandb_settings["project"],
                    entity=wandb_settings["entity"],
                    name=wandb_settings["name"],
@@ -133,6 +155,6 @@ if __name__ == "__main__":
         train(num_gpus, train_settings,wandb_settings["monitoring"])
     elif mode=="encode":
         inference_settings = config["encode_settings"]
-        ... # TODO
+        encode(**inference_settings)
     
     

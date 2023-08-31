@@ -8,7 +8,6 @@ from torchmetrics import Accuracy
 from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch
 import h5py
-# Your custom model
 
 
 class Resnet18Surv(pl.LightningModule):
@@ -151,20 +150,21 @@ class SupViTSurv(pl.LightningModule):
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
     
-    def oldpredstp(self, batch, batch_idx,mask_ratio=0.8):
-        if self.encode_gen:
-            x,y, coords = batch
-            y = self.y_encoder(y)
-            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y.unsqueeze(1), self.ids_shuffle)
-            latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
-            conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
-            return latent_x,conc_latent,coords,ids_restore
-        else:
-            x,y, coords = batch
-            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
-            #latent = torch.mean(latent,dim=1)
-            return latent,coords,ids_restore
-    
+    def oldpredstp(self, batch, batch_idx,ids_shuffle,mask_ratio=0.8):
+        with torch.no_grad():
+            if self.encode_gen:
+                x,y, coords = batch
+                y = self.y_encoder(y)
+                latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y.unsqueeze(1), ids_shuffle)
+                latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
+                conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+                return latent_x,conc_latent,coords,ids_restore
+            else:
+                x,y, coords = batch
+                latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, ids_shuffle)
+                #latent = torch.mean(latent,dim=1)
+                return latent,coords,ids_restore
+        
     def predict_step(self, batch, batch_idx,mask_ratio=0):
         x,y= batch
         

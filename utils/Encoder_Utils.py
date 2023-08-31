@@ -1,6 +1,15 @@
 import torch 
 from torch import nn 
 from sksurv.metrics import concordance_index_censored
+from PIL import Image
+from torch.utils.data import Dataset,DataLoader
+import pytorch_lightning as pl
+import os
+import pandas as pd
+from torchvision import transforms
+import h5py
+from datasets.Tile_DS import Patient_Tileset
+
 
 def c_index(logits_all,c_all,l_all):
     """
@@ -77,3 +86,68 @@ class Survival_Loss(nn.Module):
         
         
         return L_z + (1-self.alpha)*L_censored
+
+def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen,cntd=False):
+    """
+    Args:
+        save_path (str): Path where the new dataset will be stored
+        new_ds_name (str): Name of new datasetfolder
+        model (pl.LightningModule): 
+        df_tile_slide_path (str): path to df, which contains tile and slide info 
+        df_data_path (str): path to dataframe containing meta- and genomic-data 
+        gen (bool): add genomic information to encoding 
+        ctd (bool): If set to True, will continue on existing dataset
+        transform # TODO
+    """    
+    assert os.path.exists(save_path),"Save path doesnt exist"
+    save_path = os.path.join(save_path,new_ds_name)
+    if cntd:
+        assert os.path.exists(save_path), "Dataset does nott exist, to continue"
+    else:
+        assert not os.path.exists(save_path), "Dataset already exists\n Give new name or choose ctd=False to continue."
+        os.mkdir(save_path)
+    print("save_path :",save_path,"\ndf_tile_slide_path : ",df_tile_slide_path,"\ndf_data_path : ",df_data_path,"\n gen : ",gen,"\n ctd : ",cntd)
+    #load datadframes
+    df_tile_paths = pd.read_csv(df_tile_slide_path) 
+    df_trainset = pd.read_csv(df_data_path)
+    
+    #init trainer
+    trainer = pl.Trainer(
+        precision="16-mixed",
+        accelerator="gpu",
+        devices=1,
+           )
+    
+    #add coords to all tile paths df
+    df_tile_paths["coords"] = df_tile_paths.tilepath.apply(lambda x: list(map(int,x.split("(")[-1].split(")")[0].split(","))))
+    #create genomics tensor 
+    genomics_tensor = torch.Tensor(df_trainset[df_trainset.keys()[11:]].to_numpy()).to(torch.float32)
+
+    for idx,slide_name in enumerate(df_trainset["slide_id"]):
+        
+        save_path_i = os.path.join(save_path,slide_name.replace(".svs",".h5"))
+        if os.path.exists(save_path_i):
+            print(f"Skip slide {slide_name},bag already exists")
+            continue
+        
+        
+        #slide_name = df_trainset["slide_id"].iat[idx]
+        df_tiles = df_tile_paths[df_tile_paths["slide_id"]==slide_name]
+        
+        if len(df_tiles)==0:
+            print(f"No tiles found for:\n {slide_name}")
+            continue
+        
+        coords_tensor = torch.tensor(list(df_tiles["coords"])).to(torch.int64)
+        gen_vec = genomics_tensor[idx] if gen else torch.rand(size=(0,192))
+        #dataloader for ith patient
+        dataload_i = DataLoader(Patient_Tileset(df_tiles["tilepath"],gen_vec,transform), batch_size=256,num_workers=3,pin_memory=True)
+        #encode features
+        predictions = trainer.predict(model,dataload_i)
+        feats = torch.cat(predictions,dim=0)
+        torch.cuda.empty_cache()
+        save_path_i = os.path.join(save_path,slide_name.replace(".svs",".h5"))
+        with h5py.File(save_path_i, "w") as f:
+                    coords = f.create_dataset("coords", data=coords_tensor.to(torch.int64))
+                    feats = f.create_dataset("feats", data=feats.to(torch.float16))
+        

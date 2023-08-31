@@ -12,3 +12,4 @@ utils.pyc
 *.sh
 datasets/DF_TCGA-BRCA-TIILES-NORM.csv
 enc.ipynb
+lightning_logs/*

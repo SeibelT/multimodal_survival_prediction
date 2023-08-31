@@ -1,6 +1,6 @@
 mode : train
 wandb_settings :
-        monitoring : true
+        monitoring : false
         entity : tobias-seibel
         project : Feature_Encoder
         name : SurvMAE_test0.2_20epochs_2gpus
@@ -33,4 +33,18 @@ train_settings:
                  
         
 encode_settings:
-        a : 0 
+        save_path : /nodes/bevog/work4/seibel/data/testing_storetileds
+        new_ds_name : new_loop_test1
+        mycheckpnt : /nodes/bevog/work4/seibel/data/testing/lightning_logs/o8svd1da/checkpoints/epoch=19-step=36180.ckpt
+        encode_gen : false
+        ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+        model_name : SupViTSurv
+        model_params : 
+                lr : 0.01
+                nbins : 4
+                alpha : 0.1
+        df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
+        df_data_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv
+        cntd : true
+
+
