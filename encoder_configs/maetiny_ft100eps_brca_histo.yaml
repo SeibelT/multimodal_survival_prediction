@@ -1,26 +1,26 @@
 mode : train
 wandb_settings :
-        monitoring : false
+        monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : SurvMAE_test0.2_20epochs_2gpus
+        name : maetiny_ft100eps_brca_histo
 train_settings:
         ffcv : false
-        model_name : SupViTSurv
-        save_dir : /nodes/bevog/work4/seibel/data/testing
-        max_epochs : 20
+        model_name : VitTiny
+        save_dir : /home/seibel/maetiny_ft100eps_brca_histo
+        max_epochs : 100
+        stochastic_weightaveraging : true
+        annealing_epochs : 100
         checkpoint_path : 
         do_test : true
-        default_root_dir : /home/seibel/modelcheckpoints
+        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo
         max_steps : -1
         monitor_weights_gradients : true
         profiler : #simple
-        log_every_n_steps : 500
+        log_every_n_steps : 100
         tune : false
         model_params : 
                 lr : 0.0005
-                nbins : 4
-                alpha : 0.2
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
         dataset_params : 
                 df_path_train : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv

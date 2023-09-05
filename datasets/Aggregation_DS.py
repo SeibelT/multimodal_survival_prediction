@@ -5,7 +5,7 @@ import h5py
 import os 
 
 class HistGen_Dataset(Dataset):
-    def __init__(self,df,data_path,train,mode="kfold"):
+    def __init__(self,df,data_path,train=None,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
@@ -49,7 +49,7 @@ class HistGen_Dataset(Dataset):
         
 
 class Gen_Dataset(Dataset):
-    def __init__(self,df,data_path,train,mode="kfold"):
+    def __init__(self,df,data_path,train=None,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
@@ -89,7 +89,7 @@ class Gen_Dataset(Dataset):
         
 
 class Hist_Dataset(Dataset):
-    def __init__(self,df,data_path,train,mode="kfold"):
+    def __init__(self,df,data_path,train=None,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path

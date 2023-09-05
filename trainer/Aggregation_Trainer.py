@@ -15,8 +15,8 @@ def store_checkpoint(epoch,model,optimizer,storepath,run_name):
     
     
 def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
-                      testloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda,modality,batchsize
+                      valloader,bins,epochs,device,storepath,run_name,
+                      l1_lambda,modality,batchsize,testloader=None
                       ):
     
 
@@ -68,7 +68,7 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
 
         model.eval()
         with torch.no_grad():
-            for  idx,(x,c,l,l_con) in enumerate(testloader):
+            for  idx,(x,c,l,l_con) in enumerate(valloader):
                 x = x.to(device)
                 out = model(x)
                 out = out.cpu()
@@ -87,18 +87,57 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         
         
         wandbdict = {"epoch": epoch+1,
-                        "train/runningloss": runningloss/len(testloader),
+                        "train/runningloss": runningloss/len(valloader),
                         "train/c_index":c_index_train,
-                        'valid/runningloss': val_rloss/len(testloader),
+                        'valid/runningloss': val_rloss/len(valloader),
                         "valid/c_index":c_index_val,
                     }
         run.log(wandbdict)
     
-    KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
     
-    return c_index_val_all
+    run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+    if testloader is None: 
+        KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
+    
+    else:
+        #Testing
+        out_all_test =torch.empty(size=(0,bins),device='cpu')        
+        l_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        l_con_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        c_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        test_rloss = 0
 
+        model.eval()
+        with torch.no_grad():
+            for  idx,(x,c,l,l_con) in enumerate(testloader):
+                x = x.to(device)
+                out = model(x)
+                out = out.cpu()
+                #loss = criterion(out,l)  #CE loss
+                loss = criterion(out,c,l)  # TODO add loss regularization 
+                test_rloss += loss.item()
+                
+                out_all_test = torch.cat((out_all_test,out),dim=0)
+                l_all_test = torch.cat((l_all_test,l),dim=0)
+                c_all_test = torch.cat((c_all_test,c),dim=0)
+                l_con_all_test = torch.cat((l_con_all_test,l_con),dim=0)
+                
+
+        c_index_test = c_index(out_all_test,c_all_test,l_all_test)
+        
+        
+        KM_wandb(run,out_all_test,c_all_test,event_cond=l_con_all_test,n_thresholds = 4,nbins = 30)
+        wandbdict_test = {
+                        "test/runningloss": test_rloss/len(testloader),
+                        "test/c_index":c_index_test,
+                    }
+        
+        run.log(wandbdict_test)
     
+        
+    
+
+    """
     # Store models with fold name  
     if not os.path.exists(storepath):
         os.mkdir(storepath)
@@ -108,11 +147,11 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 },
                 os.path.join(storepath, f"{run_name}.pth"))
     
-    
+    """
 
 def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
-                      testloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda,modality,batchsize
+                      valloader,bins,epochs,device,storepath,run_name,
+                      l1_lambda,modality,batchsize,testloader=None
                       ):
     
 
@@ -169,7 +208,7 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
 
         model.eval()
         with torch.no_grad():
-            for  idx,(x,y,c,l,l_con) in enumerate(testloader):
+            for  idx,(x,y,c,l,l_con) in enumerate(valloader):
                 x = x.to(device)
                 y = y.to(device)
                 out = model(x,y)
@@ -189,18 +228,52 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         
         
         wandbdict = {"epoch": epoch+1,
-                        "train/runningloss": runningloss/len(testloader),
+                        "train/runningloss": runningloss/len(valloader),
                         "train/c_index":c_index_train,
-                        'valid/runningloss': val_rloss/len(testloader),
+                        'valid/runningloss': val_rloss/len(valloader),
                         "valid/c_index":c_index_val,
                     }
         run.log(wandbdict)
-    
-    KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
-    
-    return c_index_val_all
+
+    run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+    if testloader is None: 
+        KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
 
     
+    else:
+        #Testing
+        out_all_test =torch.empty(size=(0,bins),device='cpu')        
+        l_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        l_con_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        c_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
+        test_rloss = 0
+
+        model.eval()
+        with torch.no_grad():
+            for  idx,(x,y,c,l,l_con) in enumerate(testloader):
+                x = x.to(device)
+                y = y.to(device)
+                out = model(x,y)
+                out = out.cpu()
+                #loss = criterion(out,l)  #CE loss
+                loss = criterion(out,c,l)  # TODO add loss regularization 
+                test_rloss += loss.item()
+                
+                out_all_test = torch.cat((out_all_test,out),dim=0)
+                l_all_test = torch.cat((l_all_test,l),dim=0)
+                c_all_test = torch.cat((c_all_test,c),dim=0)
+                l_con_all_test = torch.cat((l_con_all_test,l_con),dim=0)
+                
+        
+        c_index_test = c_index(out_all_test,c_all_test,l_all_test)
+        KM_wandb(run,out_all_test,c_all_test,event_cond=l_con_all_test,n_thresholds = 4,nbins = 30)
+        wandbdict_test = {
+                        "test/runningloss": test_rloss/len(testloader),
+                        "test/c_index":c_index_test,
+                    }
+        run.log(wandbdict_test)
+    
+    """
     # Store models with fold name if needed   
     if not os.path.exists(storepath):
         os.mkdir(storepath)
@@ -209,3 +282,4 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 'model': model.state_dict(),
                 },
                 os.path.join(storepath, f"{run_name}.pth"))
+    """

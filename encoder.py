@@ -32,12 +32,12 @@ def train(world_size, train_settings, monitoring):
     if monitoring:
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
         if train_settings["monitor_weights_gradients"]:
-            wandb_logger.watch(model,log_freq=2*train_settings["log_every_n_steps"],log="all")
+            wandb_logger.watch(model,log_freq=20*train_settings["log_every_n_steps"],log="all")
     
     #Trainer
     if world_size>1:
         trainer = pl.Trainer(
-            default_root_dir = default_root_dir, #  TODO
+            default_root_dir = default_root_dir, 
             devices = world_size,
             accelerator = "gpu",
             log_every_n_steps=train_settings["log_every_n_steps"],
@@ -47,7 +47,7 @@ def train(world_size, train_settings, monitoring):
             strategy = "ddp",
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
-            callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",)],
+            callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,],
                             )
     else:
         trainer = pl.Trainer(
@@ -59,7 +59,7 @@ def train(world_size, train_settings, monitoring):
         profiler=train_settings["profiler"],
         logger=wandb_logger if monitoring else False,
         max_epochs=train_settings["max_epochs"],
-        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=110)],
+        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,]
                         )
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
@@ -83,7 +83,7 @@ def train(world_size, train_settings, monitoring):
     #testing
     if do_test:
         print(("#"*50+"\n")*2,"Initialize Testing!")
-        trainer.test(model, data_module) # TODO not working yet 
+        trainer.test(model, data_module) 
     print(("#"*50+"\n")*2,"Finished Training!")    
     
     # finish wandb 
