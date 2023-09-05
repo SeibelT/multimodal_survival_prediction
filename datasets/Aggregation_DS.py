@@ -5,20 +5,24 @@ import h5py
 import os 
 
 class HistGen_Dataset(Dataset):
-    def __init__(self,df,data_path,train):
+    def __init__(self,df,data_path,train,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
+        if mode == "kfold":
+            if train: 
+                self.df = self.df[self.df['kfold']>0]
+                # 
+            else: 
+                self.df = self.df[self.df['kfold']==0]
         
-        if train: 
-            self.df = self.df[self.df['kfold']>0]
-            # 
-        else: 
-            self.df = self.df[self.df['kfold']==0]
-
-        
-
-        
+        elif mode == "train":
+            self.df = self.df[self.df['traintest']==0]
+        elif mode == "test":
+            self.df = self.df[self.df['traintest']==1]
+        elif mode == "val":
+            self.df = self.df[self.df['traintest']==2]
+    
         self.genomics_tensor = torch.Tensor(self.df[self.df.keys()[11:]].to_numpy()).to(torch.float32)
         
         self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
@@ -45,17 +49,24 @@ class HistGen_Dataset(Dataset):
         
 
 class Gen_Dataset(Dataset):
-    def __init__(self,df,data_path,train):
+    def __init__(self,df,data_path,train,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
-        
-        if train: 
-            self.df = self.df[self.df['kfold']>0]
-            # 
-        else: 
-            self.df = self.df[self.df['kfold']==0]
+        if mode == "kfold":
+            if train: 
+                self.df = self.df[self.df['kfold']>0]
+                # 
+            else: 
+                self.df = self.df[self.df['kfold']==0]
 
+        elif mode == "train":
+            self.df = self.df[self.df['traintest']==0]
+        elif mode == "test":
+            self.df = self.df[self.df['traintest']==1]
+        elif mode == "val":
+            self.df = self.df[self.df['traintest']==2]
+            
         self.genomics_tensor = torch.Tensor(self.df[self.df.keys()[11:]].to_numpy()).to(torch.float32)
         self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
 
@@ -78,17 +89,25 @@ class Gen_Dataset(Dataset):
         
 
 class Hist_Dataset(Dataset):
-    def __init__(self,df,data_path,train):
+    def __init__(self,df,data_path,train,mode="kfold"):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
         
-        if train: 
-            self.df = self.df[self.df['kfold']>0]
-            # 
-        else: 
-            self.df = self.df[self.df['kfold']==0]
+        if mode == "kfold":
+            if train: 
+                self.df = self.df[self.df['kfold']>0]
+                # 
+            else: 
+                self.df = self.df[self.df['kfold']==0]
         
+        elif mode == "train":
+            self.df = self.df[self.df['traintest']==0]
+        elif mode == "test":
+            self.df = self.df[self.df['traintest']==1]
+        elif mode == "val":
+            self.df = self.df[self.df['traintest']==2]
+            
         self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
 
     def __len__(self):
