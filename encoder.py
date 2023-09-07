@@ -96,10 +96,9 @@ def encode(**kargs):
     mycheckpnt = inference_settings["mycheckpnt"]  # TODO rename this->?  and ckpt_path-> pretrainedMAEI1K_path or something
     encode_gen = inference_settings["encode_gen"]
     ckpt_path = inference_settings["ckpt_path"]
-    #model =  SupViTSurv(lr=0.01,nbins=4,alpha=0.1,ckpt_path=ckpt_path,ffcv=False,encode_gen=encode_gen)
     model =  globals()[inference_settings["model_name"]](ffcv = False,encode_gen=encode_gen,ckpt_path=ckpt_path,**inference_settings["model_params"])
     if mycheckpnt is not None:
-        model.load_from_checkpoint(mycheckpnt)
+        model.load_state_dict(torch.load(mycheckpnt)["state_dict"])
 
 
     transform = transform = transforms.Compose([transforms.ToTensor(),

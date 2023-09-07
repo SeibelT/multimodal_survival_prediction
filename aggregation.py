@@ -90,9 +90,9 @@ def aggregation():
     
    
     criterion = Survival_Loss(alpha) 
-    training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize)
-    test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize)
-    val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize)
+    training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
+    test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
+    val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     
     #run trainer

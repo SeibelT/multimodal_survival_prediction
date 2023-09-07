@@ -25,10 +25,7 @@ class Resnet18Surv(pl.LightningModule):
         self.criterion = Survival_Loss(alpha)
         
         self.save_hyperparameters()
-        
-        
-        
-        
+    
     def forward(self, x):
         out = self.resnet18(x)
         out = self.classification_head(out)
@@ -42,8 +39,6 @@ class Resnet18Surv(pl.LightningModule):
         self.log("learning_rate",self.hparams.lr)
         return loss
     
-            
-    
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch
         logits = self(hist_tile)
@@ -53,7 +48,6 @@ class Resnet18Surv(pl.LightningModule):
             self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
-    
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")
 
@@ -243,6 +237,14 @@ class VitTiny(pl.LightningModule):
         latent = torch.mean(latent,dim=1)
         return (latent)
             
+    def encodedecode(self,batch,ids_shuffle,mask_ratio):
+        x = batch
+        y = self.y_empty.to(x.device).repeat(x.size(0),1,1)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, ids_shuffle)
+        pred = self.model.forward_decoder(latent, ids_restore)
+        loss_MAE = self.model.forward_loss(x, pred, mask)
+        pred = self.model.unpatchify(pred)
+        return latent,pred,loss_MAE
     
     def validation_step(self, batch, batch_idx):
         self.evaluate(batch, "val")

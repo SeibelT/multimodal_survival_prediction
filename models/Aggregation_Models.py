@@ -252,7 +252,7 @@ class SNN_Survival(nn.Module):
 
 class TransformerMil_Survival(nn.Module):
     """
-        Unimodel: gen survival model  with attntion 
+        Unimodel: hist survival model  with attntion 
     """
     def __init__(self,d_hist,bins,dropout,d_transformer=512):
         super(TransformerMil_Survival,self).__init__()

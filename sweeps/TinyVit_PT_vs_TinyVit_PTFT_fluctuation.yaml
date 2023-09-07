@@ -1,0 +1,40 @@
+project: TinyVit_PT_vs_FT_fluctuation
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_max
+parameters:
+  epochs:
+    value: 40
+  alpha:
+    value: 0.25
+  l1_lambda:
+    value: 1e-7
+  d_gen_out:
+    value: 32
+  learningrate:
+    value: 1e-6
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [Porpoise,PrePorpoise]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.1
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/tile_encoder_dataframes
+  dim_hist_and_feature_path:
+    values: [[192,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1Kpretrained300eps_TCGA_BRCA_features/pt_files],[192,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_FT_50eps_TCGA_BRCA_features/pt_files]]
+  repeating:
+    values: [1,2,3,4,5]
+command:
+  - python3
+  - aggregation.py
