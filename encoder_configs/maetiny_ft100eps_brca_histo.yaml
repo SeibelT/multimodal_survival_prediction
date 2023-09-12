@@ -22,6 +22,7 @@ train_settings:
         model_params : 
                 lr : 0.0005
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+        datamodule :  TileModule
         dataset_params : 
                 df_path_train : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv
                 df_path_test : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv

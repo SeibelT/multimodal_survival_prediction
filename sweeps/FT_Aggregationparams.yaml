@@ -5,6 +5,7 @@ metric:
   goal: maximize
   name: test/c_index
 parameters:
+  num_workers : 4
   epochs:
     value: 40
   alpha:

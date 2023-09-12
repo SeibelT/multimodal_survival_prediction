@@ -6,7 +6,7 @@ import yaml
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.tuner import Tuner
-from pytorch_lightning.callbacks import StochasticWeightAveraging
+from pytorch_lightning.callbacks import StochasticWeightAveraging,ModelCheckpoint
 import wandb
 import os
 
@@ -23,7 +23,7 @@ def train(world_size, train_settings, monitoring):
         from datasets.Tile_DS_ffcv import ffcvmodule
         data_module = ffcvmodule(**train_settings["dataset_params"],is_dist=True if world_size>1 else False)
     else:
-        data_module = TileModule(**train_settings["dataset_params"])
+        data_module = globals()[train_settings["datamodule"]](**train_settings["dataset_params"])
         
     #Model
     model =  globals()[train_settings["model_name"]](ffcv = train_settings["ffcv"],**train_settings["model_params"])
@@ -47,12 +47,14 @@ def train(world_size, train_settings, monitoring):
             strategy = "ddp",
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
-            callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,],
+            callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//10 if train_settings["max_epochs"]>10 else 1)],
+            
                             )
     else:
         trainer = pl.Trainer(
         default_root_dir=default_root_dir, 
-        accelerator="gpu",
+        accelerator=train_settings["accelerator"],
         devices=1,
         log_every_n_steps=train_settings["log_every_n_steps"],
         max_steps=train_settings["max_steps"],
@@ -64,7 +66,7 @@ def train(world_size, train_settings, monitoring):
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
         tuner =Tuner(trainer)
-        tuner.scale_batch_size(model, datamodule=data_module, mode="binsearch",) #not supported for ddp 8pl version 2.0.6 -> run on single single gpu 
+        #tuner.scale_batch_size(model, datamodule=data_module, mode="binsearch",) #not supported for ddp 8pl version 2.0.6 -> run on single single gpu 
         lr_finder = tuner.lr_find(model, datamodule=data_module)
         print(lr_finder.results)
         print(lr_finder.suggestion())

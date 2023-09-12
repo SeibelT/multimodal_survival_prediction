@@ -34,7 +34,7 @@ def aggregation():
     dropout = config["dropout"]
     dim_hist,feature_path = config["dim_hist_and_feature_path"] 
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
-    
+    num_workers = 3 # config["num_workers"]
     csv_path_train = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_trainsplit.csv") 
     csv_path_val = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_valsplit.csv") 
     csv_path_test = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_testsplit.csv") 
@@ -90,9 +90,9 @@ def aggregation():
     
    
     criterion = Survival_Loss(alpha) 
-    training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
-    test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
-    val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize,num_workers=4,pin_memory=True)
+    training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
+    test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
+    val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     
     #run trainer

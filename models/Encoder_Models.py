@@ -262,7 +262,89 @@ class VitTiny(pl.LightningModule):
 
 
 
+class VitTiny_freeze(pl.LightningModule):
+    def __init__(self,lr,ckpt_path=None,ffcv=False):
+        super().__init__()
+        self.lr = lr
+        self.mask_ratio = 0.75
+        self.ids_shuffle = None
+        self.save_hyperparameters()
+        #ViT 
+        self.model = mae_vit_tiny_patch16()
+        #load weights
+        if ckpt_path is not None:
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            state_dict = {k.replace("module.model.", ""): v for k, v in ckpt["model"].items()}
+            self.model.load_state_dict(state_dict, strict=False)
+            for idx,block in enumerate(self.model.blocks):
+                if idx<=(len(self.model.blocks)-2):
+                    block.requires_grad=False
+            
+        self.model.cls_token.requires_grad=False
+        self.model.patch_embed.proj.weight.requires_grad=False
+        self.model.patch_embed.proj.bias.requires_grad=False
+        for idx,block in enumerate(self.model.blocks):
+            if idx<=(len(self.model.blocks)-2): #all, except last block
+                for names,parms in block.named_parameters():
+                    parms.requires_grad = False
+        
+
+        self.y_empty  = torch.rand(size=(1,0,192))
+        
+    def forward(self, x):
+        y = self.y_empty.to(x.device).repeat(x.size(0),1,1)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y, self.ids_shuffle)
+        pred = self.model.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        return pred,mask
+
+    def training_step(self, batch, batch_idx):
+        hist_tile,gen, censorship, label,label_cont = batch
+        pred,mask = self(hist_tile)
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+        self.log("train_MAEloss", loss_MAE)
+        self.log("learning_rate",self.hparams.lr)
+        return loss_MAE
     
+    def evaluate(self, batch, stage=None):
+        hist_tile,gen, censorship, label,label_cont = batch
+        pred,mask = self(hist_tile)
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+            
+        if stage:
+            self.log(f"{stage}mae_loss", loss_MAE,sync_dist=True)
+        
+    def predict_step(self, batch, batch_idx,mask_ratio=0):
+        x,y= batch
+        y = self.y_empty.to(x.device).repeat(x.size(0),1,1)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
+        latent = torch.mean(latent,dim=1)
+        return (latent)
+            
+    def encodedecode(self,batch,ids_shuffle,mask_ratio):
+        x = batch
+        y = self.y_empty.to(x.device).repeat(x.size(0),1,1)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, ids_shuffle)
+        pred = self.model.forward_decoder(latent, ids_restore)
+        loss_MAE = self.model.forward_loss(x, pred, mask)
+        pred = self.model.unpatchify(pred)
+        return latent,pred,loss_MAE
+    
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, "test")
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            )
+        
+        return {"optimizer": optimizer}
+
+
+
 class SNN(nn.Module):
     """ Implementation of SNN as described in 'Pan-cancer integrative histology-genomic analysis via multimodal deep learning' by R.Chen et al 
     https://pubmed.ncbi.nlm.nih.gov/35944502/ 
