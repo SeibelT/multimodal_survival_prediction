@@ -27,6 +27,9 @@ def train(world_size, train_settings, monitoring):
         
     #Model
     model =  globals()[train_settings["model_name"]](ffcv = train_settings["ffcv"],**train_settings["model_params"])
+    if checkpoint_path is not None:
+        print(f"Load model from Checkpointpath: \n {checkpoint_path}")
+        model.load_state_dict(torch.load(checkpoint_path)["state_dict"])
     
     #wandb monitoring + watching weights
     if monitoring:
@@ -98,8 +101,13 @@ def encode(**kargs):
     mycheckpnt = inference_settings["mycheckpnt"]  # TODO rename this->?  and ckpt_path-> pretrainedMAEI1K_path or something
     encode_gen = inference_settings["encode_gen"]
     ckpt_path = inference_settings["ckpt_path"]
+    batch_size = inference_settings["batch_size"]
+    num_workers = inference_settings["num_workers"]
+    pin_memory = inference_settings["pin_memory"]
     model =  globals()[inference_settings["model_name"]](ffcv = False,encode_gen=encode_gen,ckpt_path=ckpt_path,**inference_settings["model_params"])
+    
     if mycheckpnt is not None:
+        print("Load Modelweights")
         model.load_state_dict(torch.load(mycheckpnt)["state_dict"])
 
 
@@ -108,10 +116,10 @@ def encode(**kargs):
                                             ]
                                         )
     df_tile_slide_path = inference_settings["df_tile_slide_path"]
-    df_data_path = inference_settings["df_data_path"]
+    df_data_paths = inference_settings["df_data_paths"]
     cntd=inference_settings["cntd"]
-
-    create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen=encode_gen,cntd=cntd)
+    for df_data_path in df_data_paths:
+        create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen=encode_gen,cntd=cntd,batch_size=batch_size,num_workers=num_workers,pin_memory=pin_memory)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Feature Encoder Training and Encoding")

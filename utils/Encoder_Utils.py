@@ -87,7 +87,7 @@ class Survival_Loss(nn.Module):
         
         return L_z + (1-self.alpha)*L_censored
 
-def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen,cntd=False):
+def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen,batch_size,num_workers,pin_memory,cntd=False):
     """
     Args:
         save_path (str): Path where the new dataset will be stored
@@ -97,7 +97,7 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
         df_data_path (str): path to dataframe containing meta- and genomic-data 
         gen (bool): add genomic information to encoding 
         ctd (bool): If set to True, will continue on existing dataset
-        transform # TODO
+        
     """    
     assert os.path.exists(save_path),"Save path doesnt exist"
     save_path = os.path.join(save_path,new_ds_name)
@@ -141,7 +141,7 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
         coords_tensor = torch.tensor(list(df_tiles["coords"])).to(torch.int64)
         gen_vec = genomics_tensor[idx] if gen else torch.rand(size=(0,192))
         #dataloader for ith patient
-        dataload_i = DataLoader(Patient_Tileset(df_tiles["tilepath"],gen_vec,transform), batch_size=256,num_workers=3,pin_memory=True)
+        dataload_i = DataLoader(Patient_Tileset(df_tiles["tilepath"],gen_vec,transform), batch_size=batch_size,num_workers=num_workers,pin_memory=pin_memory)
         #encode features
         predictions = trainer.predict(model,dataload_i)
         feats = torch.cat(predictions,dim=0)
