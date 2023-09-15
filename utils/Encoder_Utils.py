@@ -130,7 +130,7 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
             print(f"Skip slide {slide_name},bag already exists")
             continue
         
-        
+        print(f"Init encoding for: {slide_name} ")
         #slide_name = df_trainset["slide_id"].iat[idx]
         df_tiles = df_tile_paths[df_tile_paths["slide_id"]==slide_name]
         
@@ -143,8 +143,20 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
         #dataloader for ith patient
         dataload_i = DataLoader(Patient_Tileset(df_tiles["tilepath"],gen_vec,transform), batch_size=batch_size,num_workers=num_workers,pin_memory=pin_memory)
         #encode features
-        predictions = trainer.predict(model,dataload_i)
-        feats = torch.cat(predictions,dim=0)
+        ##predictions = trainer.predict(model,dataload_i)
+        ##feats = torch.cat(predictions,dim=0)
+        
+        outputs = []
+        model.eval()
+        for idx_eval,batch  in enumerate(dataload_i):
+            x,y = batch 
+            with torch.no_grad():
+                outputs.append(model.predict_step(batch,idx_eval))
+        feats = torch.cat(outputs)
+        
+        
+        
+        assert not feats.isnan().any().item(),f"ERROR! NaN Encoding detected at {idx} in {slide_name}"
         torch.cuda.empty_cache()
         save_path_i = os.path.join(save_path,slide_name.replace(".svs",".h5"))
         with h5py.File(save_path_i, "w") as f:

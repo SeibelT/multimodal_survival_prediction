@@ -77,9 +77,11 @@ def c_index(out_all,c_all,l_all):
         try:
             c_index = concordance_index_censored(notc,l_all.cpu(),risk)
             #print(c_index)
+            return c_index[0]
         except:
             print("C index problems")
-        return c_index[0]
+            return torch.nan
+        
     
 
 

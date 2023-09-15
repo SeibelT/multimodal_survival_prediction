@@ -38,8 +38,8 @@ train_settings:
         
 encode_settings:
         save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_TCGA_BRCA_FT_HIST_GEN_119eps_features
-        new_ds_name : pt_files
-        mycheckpnt : /home/seibel/maetiny_ft200eps_brca_histo_gen_cont/epoch=119-step=217080.ckpt
+        new_ds_name : pt_files2
+        mycheckpnt : /home/seibel/maetiny_ft200eps_brca_histo_gen_cont/epoch=119-step=217080_mycopy.ckpt
         encode_gen : true
         ckpt_path : 
         batch_size : 128

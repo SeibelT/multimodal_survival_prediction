@@ -9,7 +9,9 @@ import yaml
 from models.Aggregation_Models import *
 from trainer.Aggregation_Trainer import *
 from datasets.Aggregation_DS import *
-
+from pytorch_lightning.loggers import WandbLogger
+from utils.Aggregation_Utils import Survival_Loss
+            
 def dropmissing(df,name,feature_path):
         len_df = len(df)
         df = df.drop(df[df["slide_id"].apply(lambda x : not os.path.exists(os.path.join(feature_path,x.replace(".svs",".h5"))))].index)
@@ -19,6 +21,7 @@ def dropmissing(df,name,feature_path):
     
 def aggregation():
     run = wandb.init()
+    
     config=dict(run.config)
     run_name = run.name or  "unknown"
     
@@ -34,7 +37,7 @@ def aggregation():
     dropout = config["dropout"]
     dim_hist,feature_path = config["dim_hist_and_feature_path"] 
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
-    num_workers = 3 # config["num_workers"]
+    num_workers = config["num_workers"]
     csv_path_train = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_trainsplit.csv") 
     csv_path_val = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_valsplit.csv") 
     csv_path_test = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_testsplit.csv") 
@@ -95,6 +98,7 @@ def aggregation():
     val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     
+    #run.watch(model,log_freq=1,log="all")
     #run trainer
     if modality in ["Porpoise","PrePorpoise",]:
         c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,

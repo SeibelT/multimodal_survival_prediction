@@ -119,6 +119,7 @@ def encode(**kargs):
     df_data_paths = inference_settings["df_data_paths"]
     cntd=inference_settings["cntd"]
     for df_data_path in df_data_paths:
+        print("current path",df_data_path)
         create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,df_data_path,gen=encode_gen,cntd=cntd,batch_size=batch_size,num_workers=num_workers,pin_memory=pin_memory)
 
 if __name__ == "__main__":

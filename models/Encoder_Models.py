@@ -193,7 +193,7 @@ class SupViTSurv(pl.LightningModule):
 
 
 class VitTiny(pl.LightningModule):
-    def __init__(self,lr,ckpt_path=None,ffcv=False):
+    def __init__(self,lr,ckpt_path=None,ffcv=False,**kwargs):
         super().__init__()
         self.lr = lr
         self.mask_ratio = 0.75
