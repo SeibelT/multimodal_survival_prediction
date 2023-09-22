@@ -177,14 +177,14 @@ class Porpoise(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,d_gen,d_gen_out,device,activation,bins):
+    def __init__(self,d_hist,d_gen,d_gen_out,device,activation,bins,d_hidden=256):
         super(Porpoise,self).__init__()
         dims = [d_hist//2,d_gen_out]   # output dimension of d_hist is given due to structure of implemented AttMIL
         flat_fusion_tensor = (d_hist//2+1) * (d_gen_out+1)
         self.Attn_Mil = AttMil(d=d_hist)
         self.SNN = SNN(d =d_gen ,d_out = d_gen_out,activation=activation)
         self.Gated_Fusion = Gated_Fusion(n_mods = 2,dims=dims,device=device)
-        self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=256,t_bins=bins)
+        self.Classifier_Head = Classifier_Head(outsize = flat_fusion_tensor,d_hidden=d_hidden,t_bins=bins)
 
     def forward(self,hist,gen):
 
@@ -200,13 +200,13 @@ class PrePorpoise(nn.Module):
     """
     Combining all modules to the complete PORPOISE model 
     """
-    def __init__(self,d_hist,d_gen,d_transformer,dropout,activation,bins):
+    def __init__(self,d_hist,d_gen,d_transformer,dropout,activation,bins,d_hidden=256):
         super(PrePorpoise,self).__init__()
         self.SNN = SNN(d =d_gen ,d_out = d_transformer,activation=activation)
         self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
         self.Encoder = nn.TransformerEncoderLayer(d_transformer,nhead=2,dropout=dropout,activation=nn.GELU(),batch_first=True)
         self.lin_embedder2 = nn.Linear(d_transformer,d_transformer//2)
-        self.Classifier_Head = Classifier_Head(outsize = d_transformer,d_hidden=256,t_bins=bins)
+        self.Classifier_Head = Classifier_Head(outsize = d_transformer,d_hidden=d_hidden,t_bins=bins)
 
     def forward(self,hist,gen):
         gen = self.SNN(gen)
@@ -223,10 +223,10 @@ class AttMil_Survival(nn.Module):
     """
     Unimodel: hist survival model 
     """
-    def __init__(self,d_hist,bins,device):
+    def __init__(self,d_hist,bins,device,d_hidden=256):
         super(AttMil_Survival,self).__init__()
         self.AttMil = AttMil(d=d_hist)
-        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=256,t_bins=bins)
+        self.Classifier_Head = Classifier_Head(outsize = d_hist//2,d_hidden=d_hidden,t_bins=bins)
 
     def forward(self,hist):
         hist = self.AttMil(hist)
@@ -237,11 +237,11 @@ class SNN_Survival(nn.Module):
     """
     Unimodel: gen survival model 
     """
-    def __init__(self,d_gen,d_gen_out,bins,device,activation):
+    def __init__(self,d_gen,d_gen_out,bins,device,activation,d_hidden=256):
         super(SNN_Survival,self).__init__()
         
         self.SNN = SNN(d =d_gen ,d_out = d_gen_out,activation=activation)
-        self.Classifier_Head = Classifier_Head(outsize = d_gen_out,d_hidden=256,t_bins=bins)
+        self.Classifier_Head = Classifier_Head(outsize = d_gen_out,d_hidden=d_hidden,t_bins=bins)
 
     def forward(self,gen):
         
@@ -254,9 +254,9 @@ class TransformerMil_Survival(nn.Module):
     """
         Unimodel: hist survival model  with attntion 
     """
-    def __init__(self,d_hist,bins,dropout,d_transformer=512):
+    def __init__(self,d_hist,bins,dropout,d_transformer=512, d_hidden = 256):
         super(TransformerMil_Survival,self).__init__()
-        d_out = d_hidden = 256
+        d_out = d_hidden 
         self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
         #self.Encoder = torch.nn.TransformerEncoder(nn.TransformerEncoderLayer(d_transformer,
         #                                                                    nhead=8,dropout=0.1,activation=nn.GELU(),batch_first=True)

@@ -12,7 +12,6 @@ class HistGen_Dataset(Dataset):
         if mode == "kfold":
             if train: 
                 self.df = self.df[self.df['kfold']>0]
-                # 
             else: 
                 self.df = self.df[self.df['kfold']==0]
         

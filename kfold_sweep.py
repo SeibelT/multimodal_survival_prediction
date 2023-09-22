@@ -111,13 +111,13 @@ def train(sweep_q, worker_q):
     if modality in ["Porpoise","PrePorpoise",]:
         c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda,modality=modality,batchsize=batchsize
+                    l1_lambda,modality=modality,
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
         c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda,modality=modality,batchsize=batchsize
+                    l1_lambda,modality=modality
                     )
    
     

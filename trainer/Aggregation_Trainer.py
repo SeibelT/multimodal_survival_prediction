@@ -12,25 +12,20 @@ def store_checkpoint(epoch,model,optimizer,storepath,run_name):
                 os.path.join(storepath, f"{run_name}_{epoch}.pth"))
 
 
-    
-    
 def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                       valloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda,modality,batchsize,testloader=None
+                      l1_lambda,modality,testloader=None
                       ):
-    
 
-    
     c_index_val_all = torch.zeros(size=(epochs,))
     for epoch in range(epochs):
-        model.train()
-        
         #init counter
-        out_all =torch.empty(size=(0,bins),device='cpu')      
-        c_all = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_all = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        runningloss = 0
+        out_all = [] 
+        c_all= []    
+        l_all = []   
+        running_loss_train = 0
         
+        model.train()
         for idx,(x,c,l,_) in enumerate(trainloader):
             x = x.to(device)
             optimizer.zero_grad()
@@ -39,103 +34,70 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
             
             if modality =="gen":
                 weights = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
+                loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
             elif modality=="hist":
-                weights = torch.cat([x.flatten() for x in model.AttMil.parameters()]) 
+                weights = torch.cat([x.flatten() for x in model.AttMil.parameters()])
+                loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1) 
             elif modality=="hist_attention":
                 weights = torch.cat([x.flatten() for x in model.Encoder.parameters()]) 
-            
-            loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
-            
+                loss = criterion(out,c,l) + l1_lambda * torch.norm(weights.cpu(),1)
+            else:
+                loss = criterion(out,c,l)
+                            
             loss.backward() 
             optimizer.step()
             
-            runningloss += loss.item()
+            running_loss_train += loss.item()
             
             #add to counters
-            out_all= torch.cat((out_all,out),dim=0)
-            l_all = torch.cat((l_all,l),dim=0)
-            c_all = torch.cat((c_all,c),dim=0)
+            out_all.append(out) 
+            l_all.append(l)     
+            c_all.append(c)     
             del out,l,c
-
+            
+        out_all = torch.cat(out_all,dim=0).cpu()
+        l_all = torch.cat(l_all,dim=0).cpu().to(torch.int16)
+        c_all = torch.cat(c_all,dim=0).cpu().to(torch.int16)
+        
         c_index_train = c_index(out_all,c_all,l_all)
 
-        #init counter
-        out_all_val =torch.empty(size=(0,bins),device='cpu')        
-        l_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_con_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        c_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        val_rloss = 0
-
-        model.eval()
-        with torch.no_grad():
-            for  idx,(x,c,l,l_con) in enumerate(valloader):
-                x = x.to(device)
-                out = model(x)
-                out = out.cpu()
-                #loss = criterion(out,l)  #CE loss
-                loss = criterion(out,c,l)  # TODO add loss regularization 
-                val_rloss += loss.item()
-                
-                out_all_val= torch.cat((out_all_val,out),dim=0)
-                l_all_val = torch.cat((l_all_val,l),dim=0)
-                c_all_val = torch.cat((c_all_val,c),dim=0)
-                l_con_all_val = torch.cat((l_con_all_val,l_con),dim=0)
-                
-
-        c_index_val = c_index(out_all_val,c_all_val,l_all_val)
+        c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"unimodal")
         c_index_val_all[epoch] = c_index_val
         
         
         wandbdict = {"epoch": epoch+1,
-                        "train/runningloss": runningloss/len(valloader),
+                        "train/runningloss": running_loss_train/len(trainloader),
                         "train/c_index":c_index_train,
-                        'valid/runningloss': val_rloss/len(valloader),
+                        'valid/runningloss': running_loss_val/len(valloader),
                         "valid/c_index":c_index_val,
                     }
-        run.log(wandbdict)
+        if run is not None:
+            run.log(wandbdict)
+            
+    model_weights = model.state_dict()
     
-    
-    run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
-    if testloader is None: 
-        KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
-    
+    if run is not None:
+        run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+        if testloader is None: 
+            KM_wandb(run,km_values_val[0],km_values_val[1],event_cond=km_values_val[2],n_thresholds = 4,nbins = 30)
+        
+        else:
+            c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"unimodal")
+            KM_wandb(run,km_values_test[0],km_values_test[1],event_cond=km_values_test[2],n_thresholds = 4,nbins = 30)
+            wandbdict_test = {
+                            "test/runningloss": running_loss_test/len(testloader),
+                            "test/c_index":c_index_test,
+                        }
+            run.log(wandbdict_test)
+        return c_index_val_all
     else:
-        #Testing
-        out_all_test =torch.empty(size=(0,bins),device='cpu')        
-        l_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_con_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        c_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        test_rloss = 0
-
-        model.eval()
-        with torch.no_grad():
-            for  idx,(x,c,l,l_con) in enumerate(testloader):
-                x = x.to(device)
-                out = model(x)
-                out = out.cpu()
-                #loss = criterion(out,l)  #CE loss
-                loss = criterion(out,c,l)  # TODO add loss regularization 
-                test_rloss += loss.item()
-                
-                out_all_test = torch.cat((out_all_test,out),dim=0)
-                l_all_test = torch.cat((l_all_test,l),dim=0)
-                c_all_test = torch.cat((c_all_test,c),dim=0)
-                l_con_all_test = torch.cat((l_con_all_test,l_con),dim=0)
-                
-
-        c_index_test = c_index(out_all_test,c_all_test,l_all_test)
-        
-        
-        KM_wandb(run,out_all_test,c_all_test,event_cond=l_con_all_test,n_thresholds = 4,nbins = 30)
-        wandbdict_test = {
-                        "test/runningloss": test_rloss/len(testloader),
-                        "test/c_index":c_index_test,
-                    }
-        
-        run.log(wandbdict_test)
-    
-        
-    
+        if testloader is None:
+            c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"unimodal")# in eval mode 
+            return c_index_train,c_index_val,model_weights
+        else:
+            c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"unimodal")# in eval mode 
+            c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"unimodal")
+            return c_index_train,c_index_val,c_index_test,model_weights
 
     """
     # Store models with fold name  
@@ -151,21 +113,16 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
 
 def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                       valloader,bins,epochs,device,storepath,run_name,
-                      l1_lambda,modality,batchsize,testloader=None
+                      l1_lambda,modality,testloader=None
                       ):
-    
-
-    
     c_index_val_all = torch.zeros(size=(epochs,))
     for epoch in range(epochs):
-        model.train()
-        
         #init counter
-        out_all =torch.empty(size=(0,bins),device='cpu')      
-        c_all = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_all = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        runningloss = 0
-        
+        out_all = [] 
+        c_all= []    
+        l_all = []   
+        running_loss_train = 0
+        model.train()
         for idx,(x,y,c,l,_) in enumerate(trainloader):
             x = x.to(device)
             y = y.to(device)
@@ -189,90 +146,59 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
             loss.backward() 
             optimizer.step()
             
-            runningloss += loss.item()
+            running_loss_train += loss.item()
             
             #add to counters
-            out_all= torch.cat((out_all,out),dim=0)
-            l_all = torch.cat((l_all,l),dim=0)
-            c_all = torch.cat((c_all,c),dim=0)
+            out_all.append(out) 
+            l_all.append(l)     
+            c_all.append(c)     
             del out,l,c
-
+            
+        out_all = torch.cat(out_all,dim=0).cpu()
+        l_all = torch.cat(l_all,dim=0).cpu().to(torch.int16)
+        c_all = torch.cat(c_all,dim=0).cpu().to(torch.int16)
+        
         c_index_train = c_index(out_all,c_all,l_all)
 
-        #init counter
-        out_all_val =torch.empty(size=(0,bins),device='cpu')        
-        l_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_con_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        c_all_val = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        val_rloss = 0
-
-        model.eval()
-        with torch.no_grad():
-            for  idx,(x,y,c,l,l_con) in enumerate(valloader):
-                x = x.to(device)
-                y = y.to(device)
-                out = model(x,y)
-                out = out.cpu()
-                #loss = criterion(out,l)  #CE loss
-                loss = criterion(out,c,l)  # TODO add loss regularization 
-                val_rloss += loss.item()
-                
-                out_all_val= torch.cat((out_all_val,out),dim=0)
-                l_all_val = torch.cat((l_all_val,l),dim=0)
-                c_all_val = torch.cat((c_all_val,c),dim=0)
-                l_con_all_val = torch.cat((l_con_all_val,l_con),dim=0)
-                
-
-        c_index_val = c_index(out_all_val,c_all_val,l_all_val)
+        c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"multimodal")
         c_index_val_all[epoch] = c_index_val
         
         
         wandbdict = {"epoch": epoch+1,
-                        "train/runningloss": runningloss/len(valloader),
+                        "train/runningloss": running_loss_train/len(trainloader),
                         "train/c_index":c_index_train,
-                        'valid/runningloss': val_rloss/len(valloader),
+                        'valid/runningloss': running_loss_val/len(valloader),
                         "valid/c_index":c_index_val,
                     }
         run.log(wandbdict)
 
     run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
-    if testloader is None: 
-        KM_wandb(run,out_all_val,c_all_val,event_cond=l_con_all_val,n_thresholds = 4,nbins = 30)
 
+    model_weights = model.state_dict()
     
-    else:
-        #Testing
-        out_all_test =torch.empty(size=(0,bins),device='cpu')        
-        l_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        l_con_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        c_all_test = torch.empty(size=(0,),device='cpu').to(torch.int16)
-        test_rloss = 0
-
-        model.eval()
-        with torch.no_grad():
-            for  idx,(x,y,c,l,l_con) in enumerate(testloader):
-                x = x.to(device)
-                y = y.to(device)
-                out = model(x,y)
-                out = out.cpu()
-                #loss = criterion(out,l)  #CE loss
-                loss = criterion(out,c,l)  # TODO add loss regularization 
-                test_rloss += loss.item()
-                
-                out_all_test = torch.cat((out_all_test,out),dim=0)
-                l_all_test = torch.cat((l_all_test,l),dim=0)
-                c_all_test = torch.cat((c_all_test,c),dim=0)
-                l_con_all_test = torch.cat((l_con_all_test,l_con),dim=0)
-                
+    if run is not None:
+        run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+        if testloader is None: 
+            KM_wandb(run,km_values_val[0],km_values_val[1],event_cond=km_values_val[2],n_thresholds = 4,nbins = 30)
         
-        c_index_test = c_index(out_all_test,c_all_test,l_all_test)
-        KM_wandb(run,out_all_test,c_all_test,event_cond=l_con_all_test,n_thresholds = 4,nbins = 30)
-        wandbdict_test = {
-                        "test/runningloss": test_rloss/len(testloader),
-                        "test/c_index":c_index_test,
-                    }
-        run.log(wandbdict_test)
-    
+        else:
+            c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"multimodal")
+            KM_wandb(run,km_values_test[0],km_values_test[1],event_cond=km_values_test[2],n_thresholds = 4,nbins = 30)
+            wandbdict_test = {
+                            "test/runningloss": running_loss_test/len(testloader),
+                            "test/c_index":c_index_test,
+                        }
+            run.log(wandbdict_test)
+        return c_index_val_all
+    else:
+        if testloader is None:
+            c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"multimodal")# in eval mode 
+            return c_index_train,c_index_val,model_weights
+        else:
+            c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"multimodal")# in eval mode 
+            c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"multimodal")
+            return c_index_train,c_index_val,c_index_test,model_weights
+        
     """
     # Store models with fold name if needed   
     if not os.path.exists(storepath):
@@ -283,3 +209,54 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 },
                 os.path.join(storepath, f"{run_name}.pth"))
     """
+    
+def eval_func(model,loader,criterion,device,bins,modality):
+    #uni
+    #init counter
+    out_all = []   
+    l_all = []
+    l_con_all = []
+    c_all = []
+    running_loss = 0
+
+    model.eval()
+    if modality == "unimodal":
+        with torch.no_grad():
+            for  idx,(x,c,l,l_con) in enumerate(loader):
+                x = x.to(device)
+                out = model(x)
+                out = out.cpu()
+                
+                if criterion is not None:
+                    loss = criterion(out,c,l) 
+                    running_loss += loss.item()                
+                out_all.append(out) 
+                l_all.append(l) 
+                c_all.append(c)
+                l_con_all.append(l_con) 
+                
+    elif modality == "multimodal":
+        with torch.no_grad():
+            for  idx,(x,y,c,l,l_con) in enumerate(loader):
+                x = x.to(device)
+                y = y.to(device)
+                out = model(x,y)
+                out = out.cpu()
+                
+                if criterion is not None:
+                    loss = criterion(out,c,l)  
+                    running_loss += loss.item()
+                    
+                out_all.append(out) 
+                l_all.append(l) 
+                c_all.append(c)
+                l_con_all.append(l_con) 
+
+    out_all = torch.cat(out_all,dim=0).cpu()
+    l_all = torch.cat(l_all,dim=0).cpu().to(torch.int16)
+    c_all = torch.cat(c_all,dim=0).cpu().to(torch.int16)
+    l_con_all = torch.cat(l_con_all,dim=0).cpu().to(torch.int16)
+    
+    c_index_out = c_index(out_all,c_all,l_all)    
+                    
+    return c_index_out,running_loss,[out_all,c_all,l_con_all]

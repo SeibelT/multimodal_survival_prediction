@@ -35,6 +35,7 @@ def aggregation():
     activation = config["activation"]
     modality = config["modality"]
     dropout = config["dropout"]
+    d_hidden = config["d_hidden"]
     dim_hist,feature_path = config["dim_hist_and_feature_path"] 
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
     num_workers = config["num_workers"]
@@ -60,7 +61,7 @@ def aggregation():
         val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
         test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
-        model = Porpoise(d_hist=dim_hist,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
+        model = Porpoise(d_hist=dim_hist,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     
     elif modality=="PrePorpoise":
@@ -68,7 +69,7 @@ def aggregation():
         val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
         test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
-        model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
+        model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     
     elif modality=="gen":
@@ -76,20 +77,20 @@ def aggregation():
         val_ds = Gen_Dataset(df_val,data_path = feature_path,mode="val")
         test_ds = Gen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
-        model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation).to(device)
+        model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation,d_hidden=d_hidden).to(device)
         
     
     elif modality=="hist":
         train_ds = Hist_Dataset(df_train,data_path = feature_path,mode="train")
         val_ds = Hist_Dataset(df_val,data_path = feature_path,mode="val")
         test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
-        model = AttMil_Survival(d_hist=dim_hist,bins=bins,device=device).to(device)
+        model = AttMil_Survival(d_hist=dim_hist,bins=bins,device=device,d_hidden=d_hidden).to(device)
         
     elif modality=="hist_attention":
         train_ds = Hist_Dataset(df_train,data_path = feature_path,mode="train")
         val_ds = Hist_Dataset(df_val,data_path = feature_path,mode="val")
         test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
-        model = TransformerMil_Survival(d_hist=dim_hist,bins=bins,dropout=dropout).to(device)
+        model = TransformerMil_Survival(d_hist=dim_hist,bins=bins,dropout=dropout,d_hidden=d_hidden).to(device)
     
    
     criterion = Survival_Loss(alpha) 
@@ -103,13 +104,13 @@ def aggregation():
     if modality in ["Porpoise","PrePorpoise",]:
         c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda,modality=modality,batchsize=batchsize,testloader=test_dataloader
+                    l1_lambda,modality=modality,testloader=test_dataloader
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
         c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
-                    l1_lambda,modality=modality,batchsize=batchsize,testloader=test_dataloader
+                    l1_lambda,modality=modality,testloader=test_dataloader
                     )
    
 if __name__ == "__main__":     
