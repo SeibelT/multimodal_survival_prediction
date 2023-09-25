@@ -210,7 +210,7 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 os.path.join(storepath, f"{run_name}.pth"))
     """
     
-def eval_func(model,loader,criterion,device,bins,modality):
+def eval_func(model,loader,criterion,device,bins,modality_input):
     #uni
     #init counter
     out_all = []   
@@ -220,7 +220,7 @@ def eval_func(model,loader,criterion,device,bins,modality):
     running_loss = 0
 
     model.eval()
-    if modality == "unimodal":
+    if modality_input == "unimodal":
         with torch.no_grad():
             for  idx,(x,c,l,l_con) in enumerate(loader):
                 x = x.to(device)
@@ -235,7 +235,7 @@ def eval_func(model,loader,criterion,device,bins,modality):
                 c_all.append(c)
                 l_con_all.append(l_con) 
                 
-    elif modality == "multimodal":
+    elif modality_input == "multimodal":
         with torch.no_grad():
             for  idx,(x,y,c,l,l_con) in enumerate(loader):
                 x = x.to(device)

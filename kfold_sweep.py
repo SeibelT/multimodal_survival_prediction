@@ -10,7 +10,7 @@ import multiprocessing
 from models.Aggregation_Models import *
 from trainer.Aggregation_Trainer import *
 from datasets.Aggregation_DS import *
-
+from utils.Aggregation_Utils import Survival_Loss
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
@@ -18,7 +18,13 @@ WorkerInitData = collections.namedtuple(
 )
 WorkerDoneData = collections.namedtuple("WorkerDoneData", ("val_c_all"))
 
-
+def dropmissing(df,name,feature_path):
+        len_df = len(df)
+        df = df.drop(df[df["slide_id"].apply(lambda x : not os.path.exists(os.path.join(feature_path,x.replace(".svs",".h5"))))].index)
+        if len_df !=len(df):
+            print(f"Dropped {len_df-len(df)}rows in {name} dataframe")
+        return df
+    
 def reset_wandb_env():
     exclude = {
         "WANDB_PROJECT",
@@ -58,15 +64,16 @@ def train(sweep_q, worker_q):
     modality = config["modality"]
     dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
-    
+    d_hist,feature_path = config["dim_hist_and_feature_path"]
     #setup file paths and read CSV #TODO more general solution needed if time 
     storepath =    datapath+f"/results/{modality}sweep"  
-    feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
-    csv_path =            datapath+"/tcga_brca_trainable"+str(bins)+".csv" # CSV file 
+    #feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
+    csv_path =            datapath+"/aggregation_kfold_dataframes/tcga_brca_trainable"+str(bins)+".csv" # CSV file 
     
     
     
     df = pd.read_csv(csv_path)
+    df = dropmissing(df,"kfold dataframe",feature_path)
     df["kfold"] = df["kfold"].apply(lambda x : (x+fold)%num_fold) 
     
     #Initialize Dataset and Model based on Modality
@@ -74,14 +81,14 @@ def train(sweep_q, worker_q):
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
         d_gen = train_ds.gen_depth()
-        model = Porpoise(d_hist=2048,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
+        model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
         
     
     elif modality=="PrePorpoise":
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
         d_gen = train_ds.gen_depth()
-        model = PrePorpoise(d_hist=2048,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
+        model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
         
     
     elif modality=="gen":
@@ -94,12 +101,12 @@ def train(sweep_q, worker_q):
     elif modality=="hist":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         val_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = AttMil_Survival(d_hist=2048,bins=bins,device=device).to(device)
+        model = AttMil_Survival(d_hist=d_hist,bins=bins,device=device).to(device)
         
     elif modality=="hist_attention":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         val_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = TransformerMil_Survival(d_hist=2048,bins=bins,dropout=dropout).to(device)
+        model = TransformerMil_Survival(d_hist=d_hist,bins=bins,dropout=dropout).to(device)
     
    
     criterion = Survival_Loss(alpha) 
