@@ -158,7 +158,7 @@ class Gated_Fusion(nn.Module):
 class Classifier_Head(nn.Module):
     def __init__(self,outsize,d_hidden=256,t_bins=4):
         super(Classifier_Head,self).__init__()
-
+        
         self.linear1 = nn.Linear(outsize,d_hidden)
         torch.nn.init.kaiming_normal_(self.linear1.weight)
         self.activ1 = nn.ReLU()
@@ -166,10 +166,13 @@ class Classifier_Head(nn.Module):
         torch.nn.init.kaiming_normal_(self.linear2.weight)
         self.activ2 = nn.ReLU()
         self.fc = nn.Linear(d_hidden,t_bins) # TODO test add layer
+        
+        self.dropout1 = nn.Dropout(p=0.5)
+        self.dropout2 = nn.Dropout(p=0.5)
     def forward(self,x):
         x = torch.flatten(x,start_dim=1)
-        x = self.activ1(self.linear1(x))
-        x = self.activ2(self.linear2(x))
+        x = self.dropout1(self.activ1(self.linear1(x)))
+        x = self.dropout2(self.activ2(self.linear2(x)))
         return self.fc(x)
     
 

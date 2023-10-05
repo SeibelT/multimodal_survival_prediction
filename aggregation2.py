@@ -20,7 +20,7 @@ def dropmissing(df,name,feature_path):
         return df
     
 def aggregation():
-    run = wandb.init(WANDB_DIR="/nodes/bevog/work4/seibel/data/wandb",WANDB_CACHE_DIR="/nodes/bevog/work4/seibel/data/wandb")
+    run = wandb.init()
     
     config=dict(run.config)
     run_name = run.name or  "unknown"
@@ -39,63 +39,83 @@ def aggregation():
     dim_hist,feature_path = config["dim_hist_and_feature_path"] 
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
     num_workers = config["num_workers"]
-    csv_path_train = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_trainsplit.csv") 
-    csv_path_val = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_valsplit.csv") 
-    csv_path_test = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_testsplit.csv") 
-    
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
-    
-    
-    df_train = pd.read_csv(csv_path_train)
-    df_test = pd.read_csv(csv_path_test)
-    df_val = pd.read_csv(csv_path_val)
-    
-    df_train = dropmissing(df_train,"train",feature_path)
-    df_test = dropmissing(df_test,"test",feature_path)
-    df_val = dropmissing(df_val,"val",feature_path)
+    do_test = True
+    kfold = config["kfold"] 
+    num_fold = 5
+    if kfold is not None:
+        csv_path_kfold = os.path.join(config["csv_path"],"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
+        df_kfold = pd.read_csv(csv_path_kfold)
+        df_kfold = dropmissing(df_kfold,"kfold",feature_path)
+        df_kfold["kfold"] = df_kfold["kfold"].apply(lambda x : (x+kfold)%num_fold) 
+        df_kfold = df_kfold.sample(frac=1,random_state=1337)
+        df_train = df_kfold
+        df_val = df_kfold
+        do_test = False
         
+        #assert not do_test, "kfold not applicable with test"
+    else:
+        csv_path_train = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_trainsplit.csv") 
+        df_train = pd.read_csv(csv_path_train)
+        df_train = dropmissing(df_train,"train",feature_path)
+        csv_path_val = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_valsplit.csv") 
+        df_val = pd.read_csv(csv_path_val)
+        df_val = dropmissing(df_val,"val",feature_path)
+        
+        if do_test:
+            csv_path_test = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_testsplit.csv") 
+            df_test = pd.read_csv(csv_path_test)
+            df_test = dropmissing(df_test,"test",feature_path)
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'    
     #Initialize Dataset and Model based on Modality
     if modality=="Porpoise":
-        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
-        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
-        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,train=False,mode="val"if kfold is None else "kfold")
+        if do_test:
+            test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
         model = Porpoise(d_hist=dim_hist,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     
     elif modality=="PrePorpoise":
-        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
-        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
-        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
+        if do_test:
+            test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
         model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     
     elif modality=="gen":
-        train_ds = Gen_Dataset(df_train,data_path = feature_path,mode="train")
-        val_ds = Gen_Dataset(df_val,data_path = feature_path,mode="val")
-        test_ds = Gen_Dataset(df_test,data_path = feature_path,mode="test")
+        train_ds = Gen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
+        val_ds = Gen_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
+        if do_test:
+            test_ds = Gen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
         model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation,d_hidden=d_hidden).to(device)
         
     
     elif modality=="hist":
-        train_ds = Hist_Dataset(df_train,data_path = feature_path,mode="train")
-        val_ds = Hist_Dataset(df_val,data_path = feature_path,mode="val")
-        test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
+        train_ds = Hist_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
+        val_ds = Hist_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
+        if do_test:
+            test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
         model = AttMil_Survival(d_hist=dim_hist,bins=bins,device=device,d_hidden=d_hidden).to(device)
         
     elif modality=="hist_attention":
-        train_ds = Hist_Dataset(df_train,data_path = feature_path,mode="train")
-        val_ds = Hist_Dataset(df_val,data_path = feature_path,mode="val")
-        test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
+        train_ds = Hist_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
+        val_ds = Hist_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
+        if do_test:
+            test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
         model = TransformerMil_Survival(d_hist=dim_hist,bins=bins,dropout=dropout,d_hidden=d_hidden).to(device)
     
    
     criterion = Survival_Loss(alpha) 
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
-    test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
+    if do_test:
+        test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
+    else: 
+        test_dataloader = None 
     val_dataloader = torch.utils.data.DataLoader(val_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     

@@ -1,0 +1,48 @@
+project: kfold_porpoise_replication_alpha_sweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: valid/c_index
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    values: [0.9,0.09,0.009,0.0]
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 2e-4
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [Porpoise,hist,gen]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes
+  dim_hist_and_feature_path:
+    value: [2048,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files]
+  kfold:
+    values: [0,1,2,3,4]
+  repeating:
+    value: none
+
+  
+command:
+  - python3
+  - aggregation2.py

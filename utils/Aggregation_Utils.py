@@ -1,3 +1,4 @@
+import os
 import numpy as np 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -222,3 +223,12 @@ def stepfunc(x,y,eps=1e-4):
 
 def do_table(x,y,label):
     return [[x[i],y[i],label] for i in range(len(x))]
+
+
+
+def dropmissing(df,name,feature_path):
+    len_df = len(df)
+    df = df.drop(df[df["slide_id"].apply(lambda x : not os.path.exists(os.path.join(feature_path,x.replace(".svs",".h5"))))].index)
+    if len_df !=len(df):
+        print(f"Dropped {len_df-len(df)}rows in {name} dataframe")
+    return df
