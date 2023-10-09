@@ -7,6 +7,7 @@ from torch import nn
 from sksurv.metrics import concordance_index_censored,cumulative_dynamic_auc
 import wandb
 from sksurv.nonparametric import kaplan_meier_estimator
+from sksurv.compare import compare_survival
 
 class Survival_Loss(nn.Module):
     def __init__(self,alpha,eps = 1e-7):
@@ -153,13 +154,12 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac
         return df_train,df_test,df_val
 
 
-def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
+def KM_wandb(run,out,c,event_cont,n_thresholds = 4,nbins = 30):
     print("Start Logging KM-Estimators")
     risk = get_risk(out)
     
     #thresholds
-    min,max = risk.min(),risk.max()
-    thresholds = np.linspace(min,max,n_thresholds+2)[1:-1]
+    min,max,mean,median = risk.min(),risk.max(),risk.mean(),risk.median()
     
     #hist
     censored = c.type(torch.bool)
@@ -184,17 +184,25 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
     ###
     
     
-    
-    
     #KaplanMeier Plots
-    xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cond)
+    xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cont)
     
-    for idx,threshold in enumerate(thresholds): 
+    for thresholds_name,threshold in zip(["mean","median"],[mean,median]): 
+        #Log Rank test 
+        y_stat = np.asarray([(c,time) for c,time in zip(uncensored,event_cont)],dtype=[('name', '?'), ('field', '<i8')])
+        group_indicator = (risk<threshold).numpy().astype("bool")
+        if (sum(group_indicator)==0) or (len(group_indicator)==sum(group_indicator)):
+            continue
+        chisq,pvalue = compare_survival(y_stat, group_indicator, return_stats=False)
+        
+        #KM low
         xlow, ylow = kaplan_meier_estimator(uncensored[risk<threshold].numpy(),
-                                    event_cond[risk<threshold])
-
+                                    event_cont[risk<threshold])
+        #KM high
         xhigh, yhigh = kaplan_meier_estimator(uncensored[risk>=threshold].numpy(),
-                                    event_cond[risk>=threshold])
+                                    event_cont[risk>=threshold])
+        
+        
         
         
         table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(risk<threshold)}")+do_table(xhigh,yhigh,f"high risk group {sum(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
@@ -204,9 +212,12 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
         custom_KM = wandb.plot_table(vega_spec_name="tobias-seibel/kaplanmeier",
                     data_table=table_KM,
                     fields = field_KM, 
-                    string_fields={"title":f"KM Risk Stratification at {round(threshold,2)}"},
+                    string_fields={"title":f"KM RS at {thresholds_name}({round(threshold.item(),2)}),Chi squared = {chisq:.2e}, pvalue = {pvalue:.2e}"},
                     )
-        run.log({f"KM_{idx}" :custom_KM})
+        
+        run.log({f"KM_{thresholds_name}" :custom_KM,f"{thresholds_name}_pvalue":pvalue,f"{thresholds_name}_statistic":chisq})
+    
+    wandb.log({"risk_min":min,"risk_max":max,"risk_mean":mean,"risk_median":median})
     print("Finished logging KM-Estimators")
     
 def get_risk(out):

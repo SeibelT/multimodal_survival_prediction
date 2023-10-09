@@ -156,7 +156,7 @@ class Gated_Fusion(nn.Module):
         return torch.bmm(v1.unsqueeze(-1),v2.unsqueeze(-2))  
 
 class Classifier_Head(nn.Module):
-    def __init__(self,outsize,d_hidden=256,t_bins=4):
+    def __init__(self,outsize,d_hidden=256,t_bins=4,p_dropout_head = 0):
         super(Classifier_Head,self).__init__()
         
         self.linear1 = nn.Linear(outsize,d_hidden)
@@ -167,8 +167,8 @@ class Classifier_Head(nn.Module):
         self.activ2 = nn.ReLU()
         self.fc = nn.Linear(d_hidden,t_bins) # TODO test add layer
         
-        self.dropout1 = nn.Dropout(p=0.5)
-        self.dropout2 = nn.Dropout(p=0.5)
+        self.dropout1 = nn.Dropout(p=p_dropout_head)
+        self.dropout2 = nn.Dropout(p=p_dropout_head)
     def forward(self,x):
         x = torch.flatten(x,start_dim=1)
         x = self.dropout1(self.activ1(self.linear1(x)))

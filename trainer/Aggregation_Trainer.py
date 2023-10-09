@@ -79,11 +79,11 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
     if run is not None:
         run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
         if testloader is None: 
-            KM_wandb(run,km_values_val[0],km_values_val[1],event_cond=km_values_val[2],n_thresholds = 4,nbins = 30)
+            KM_wandb(run,km_values_val[0],km_values_val[1],event_cont=km_values_val[2],n_thresholds = 4,nbins = 30)
         
         else:
             c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"unimodal")
-            KM_wandb(run,km_values_test[0],km_values_test[1],event_cond=km_values_test[2],n_thresholds = 4,nbins = 30)
+            KM_wandb(run,km_values_test[0],km_values_test[1],event_cont=km_values_test[2],n_thresholds = 4,nbins = 30)
             wandbdict_test = {
                             "test/runningloss": running_loss_test/len(testloader),
                             "test/c_index":c_index_test,
@@ -179,11 +179,11 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
     if run is not None:
         run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
         if testloader is None: 
-            KM_wandb(run,km_values_val[0],km_values_val[1],event_cond=km_values_val[2],n_thresholds = 4,nbins = 30)
+            KM_wandb(run,km_values_val[0],km_values_val[1],event_cont=km_values_val[2],n_thresholds = 4,nbins = 30)
         
         else:
             c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"multimodal")
-            KM_wandb(run,km_values_test[0],km_values_test[1],event_cond=km_values_test[2],n_thresholds = 4,nbins = 30)
+            KM_wandb(run,km_values_test[0],km_values_test[1],event_cont=km_values_test[2],n_thresholds = 4,nbins = 30)
             wandbdict_test = {
                             "test/runningloss": running_loss_test/len(testloader),
                             "test/c_index":c_index_test,
