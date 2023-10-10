@@ -10,13 +10,14 @@ import multiprocessing
 from models.Aggregation_Models import *
 from trainer.Aggregation_Trainer import *
 from datasets.Aggregation_DS import *
-from utils.Aggregation_Utils import Survival_Loss
+from utils.Aggregation_Utils import Survival_Loss,c_index,KM_wandb
 
 Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
     "WorkerInitData", ("num", "sweep_id", "sweep_run_name", "config","n_folds")
 )
-WorkerDoneData = collections.namedtuple("WorkerDoneData", ("val_c_all"))
+WorkerDoneData = collections.namedtuple("WorkerDoneData", ["val_c_all","risk_fold","c_fold","l_con_fold"])
+
 
 def dropmissing(df,name,feature_path):
         len_df = len(df)
@@ -65,6 +66,7 @@ def train(sweep_q, worker_q):
     dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     d_hist,feature_path = config["dim_hist_and_feature_path"]
+    
     #setup file paths and read CSV #TODO more general solution needed if time 
     storepath =    datapath+f"/results/{modality}sweep"  
     #feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
@@ -81,14 +83,14 @@ def train(sweep_q, worker_q):
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
         d_gen = train_ds.gen_depth()
-        model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=32,device=device,activation=activation,bins=bins).to(device)
+        model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation,bins=bins).to(device)
         
     
     elif modality=="PrePorpoise":
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
         d_gen = train_ds.gen_depth()
-        model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins).to(device)
+        model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins).to(device)
         
     
     elif modality=="gen":
@@ -116,13 +118,13 @@ def train(sweep_q, worker_q):
     
     #run trainer
     if modality in ["Porpoise","PrePorpoise",]:
-        c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        c_vals,risk_fold,c_fold,l_con_fold = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
-        c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        c_vals,risk_fold,c_fold,l_con_fold = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality
                     )
@@ -130,7 +132,9 @@ def train(sweep_q, worker_q):
     
     run.log(dict(val_c_all=c_vals.numpy()))
     wandb.join()
-    sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy()))
+    
+    sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),risk_fold=risk_fold.to(torch.float16).numpy(),c_fold=c_fold.to(torch.int16).numpy(),l_con_fold=l_con_fold.to(torch.float16).numpy()))
+    #sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),c_fold=c_fold.to(torch.int16)))
 
 
 def main():
@@ -157,7 +161,7 @@ def main():
     sweep_run.save()
     sweep_run_name = sweep_run.name or sweep_run.id or "unknown"
 
-    metrics = []
+    metrics,risk_all,c_all,l_con_all = [],[],[],[]
     for num in range(num_folds):
         worker = workers[num]
         # start worker
@@ -176,11 +180,16 @@ def main():
         worker.process.join()
         # log metric to sweep_run
         metrics.append(result.val_c_all)
+        c_all.append(torch.tensor(result.c_fold))
+        l_con_all.append(torch.tensor(result.l_con_fold))
+        risk_all.append(torch.tensor(result.risk_fold,dtype=torch.float64))
+        
     metrics_mean = np.mean(np.asarray(metrics),axis=0)
+    KM_total = KM_wandb(sweep_run,torch.cat(risk_all),torch.cat(c_all),torch.cat(l_con_all))
     
-    sweep_run.log(dict(c_index_max=metrics_mean.max(),c_index_last=metrics_mean[-1],c_index_epoch=np.argmax(metrics_mean)))
+    sweep_run.log(dict(c_index_max=metrics_mean.max(),c_index_last=metrics_mean[-1],c_index_epoch=np.argmax(metrics_mean),KM_total=KM_total))
     wandb.join()
-
+    print("riskallsize",torch.cat(risk_all).size())
     print("*" * 40)
     print("Sweep URL:       ", sweep_url)
     print("Sweep Group URL: ", sweep_group_url)

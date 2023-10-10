@@ -26,7 +26,7 @@ parameters:
   bins:
     value: 4
   modality:
-    value: Porpoise
+    values: [Porpoise,hist,gen]
   batchsize:
     value: 1
   datapath:

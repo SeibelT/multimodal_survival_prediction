@@ -61,23 +61,19 @@ class Survival_Loss(nn.Module):
         
         return L_z + (1-self.alpha)*L_censored
 
-def c_index(out_all,c_all,l_all): 
+def c_index(risk_all,c_all,l_all): 
     """
     Variables
-    out_all : FloatTensor must be of shape = (N,4)  predicted logits of model 
+    risk_all : FloatTensor must be of shape = (N,)  predicted logits of model 
     c_all : IntTensor must be of shape = (N,) 
     l_all IntTensor must be of shape = (N,)
 
     Outputs the c-index score 
     """
     with torch.no_grad(): 
-        #risk
-        h = nn.Sigmoid()(out_all)
-        S = torch.cumprod(1-h,dim = -1)
-        risk = -S.sum(dim=1) ## TODO why is it not 1-S ???
         notc = (1-c_all).numpy().astype(bool)
         try:
-            c_index = concordance_index_censored(notc,l_all.cpu(),risk)
+            c_index = concordance_index_censored(notc,l_all.cpu(),risk_all.detach())
             #print(c_index)
             return c_index[0]
         except:
@@ -85,7 +81,11 @@ def c_index(out_all,c_all,l_all):
             return torch.nan
         
     
-
+def risk_func(out):
+    h = nn.Sigmoid()(out)
+    S = torch.cumprod(1-h,dim = -1)
+    risk = -S.sum(dim=1)
+    return risk
 
 
 def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac_val=None):
@@ -154,9 +154,9 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac
         return df_train,df_test,df_val
 
 
-def KM_wandb(run,out,c,event_cont,n_thresholds = 4,nbins = 30):
+def KM_wandb(run,risk,c,event_cont,nbins = 30):
     print("Start Logging KM-Estimators")
-    risk = get_risk(out)
+    
     
     #thresholds
     min,max,mean,median = risk.min(),risk.max(),risk.mean(),risk.median()
@@ -220,11 +220,6 @@ def KM_wandb(run,out,c,event_cont,n_thresholds = 4,nbins = 30):
     wandb.log({"risk_min":min,"risk_max":max,"risk_mean":mean,"risk_median":median})
     print("Finished logging KM-Estimators")
     
-def get_risk(out):
-    h = nn.Sigmoid()(out)
-    S = torch.cumprod(1-h,dim = -1)
-    risk = -S.sum(dim=1)
-    return risk
 
 def stepfunc(x,y,eps=1e-4):
     #not needed anymore 

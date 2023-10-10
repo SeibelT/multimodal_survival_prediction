@@ -102,13 +102,13 @@ def aggregation():
     #run.watch(model,log_freq=1,log="all")
     #run trainer
     if modality in ["Porpoise","PrePorpoise",]:
-        c_vals = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,testloader=test_dataloader
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
-        c_vals = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,testloader=test_dataloader
                     )
