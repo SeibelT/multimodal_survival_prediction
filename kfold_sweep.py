@@ -63,14 +63,16 @@ def train(sweep_q, worker_q):
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
     modality = config["modality"]
+    assert modality in ["Porpoise","PrePorpoise","gen","hist","hist_attention"],"Modality name not known"
     dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
+    csv_path = config["csv_path"]
     d_hist,feature_path = config["dim_hist_and_feature_path"]
     
     #setup file paths and read CSV #TODO more general solution needed if time 
-    storepath =    datapath+f"/results/{modality}sweep"  
-    #feature_path = datapath+"/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files/"
-    csv_path =            datapath+"/aggregation_kfold_dataframes/tcga_brca_trainable"+str(bins)+".csv" # CSV file 
+    storepath = os.path.join(datapath,f"/results/{modality}sweep") # not used! 
+    
+    csv_path = os.path.join(csv_path,"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
     
     
     
@@ -134,12 +136,11 @@ def train(sweep_q, worker_q):
     wandb.join()
     
     sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),risk_fold=risk_fold.to(torch.float16).numpy(),c_fold=c_fold.to(torch.int16).numpy(),l_con_fold=l_con_fold.to(torch.float16).numpy()))
-    #sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),c_fold=c_fold.to(torch.int16)))
+    
 
 
 def main():
-    num_folds = 5
-
+    num_folds = 4 # TODO num folds from config file via sys arg
     # Spin up workers before calling wandb.init()
     # Workers will be blocked on a queue waiting to start
     sweep_q = multiprocessing.Queue()

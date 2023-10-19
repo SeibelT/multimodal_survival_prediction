@@ -79,7 +79,7 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
             
     model_weights = model.state_dict()
     
-    if run is not None:#assume thats only kfold 
+    if run is not None:
         run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
         if testloader is None: 
             KM_wandb(run,km_values_val[0],km_values_val[1],event_cont=km_values_val[2],nbins = 30)
