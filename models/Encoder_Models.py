@@ -10,61 +10,8 @@ import torch
 import h5py
 
 
-class Resnet18Surv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha):
-        super().__init__()
-        self.lr = lr
-        self.nbins = nbins
-        self.frozen_flag = True
-        
-        # Model
-        self.resnet18 = resnet18(pretrained=True)
-        self.resnet18.fc = nn.Identity()
-        self.classification_head =  Classifier_Head(512,d_hidden=256,t_bins=nbins)
-        # Loss
-        self.criterion = Survival_Loss(alpha)
-        
-        self.save_hyperparameters()
-    
-    def forward(self, x):
-        out = self.resnet18(x)
-        out = self.classification_head(out)
-        return out
-
-    def training_step(self, batch, batch_idx):
-        hist_tile,gen, censorship, label,label_cont = batch
-        logits = self(hist_tile)
-        loss = self.criterion(logits,censorship,label)
-        self.log("train_loss", loss)
-        self.log("learning_rate",self.hparams.lr)
-        return loss
-    
-    def evaluate(self, batch, stage=None):
-        hist_tile,gen, censorship, label,label_cont = batch
-        logits = self(hist_tile)
-        loss = self.criterion(logits,censorship,label)
-            
-        if stage:
-            self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
-            #self.log(f"{stage}_acc", acc, prog_bar=True)
-        
-    def validation_step(self, batch, batch_idx):
-        self.evaluate(batch, "val")
-
-    def test_step(self, batch, batch_idx):
-        self.evaluate(batch, "test")
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            filter(lambda p: p.requires_grad, self.parameters()),
-            lr=self.lr,
-            )
-        
-        return {"optimizer": optimizer}
-
-
-
 class Classifier_Head(nn.Module):
+    """Survival Head"""
     def __init__(self,outsize,d_hidden=256,t_bins=4):
         super(Classifier_Head,self).__init__()
 
@@ -83,10 +30,63 @@ class Classifier_Head(nn.Module):
     
     
 
+class SNN(nn.Module):
+    """ Implementation of SNN as described in 'Pan-cancer integrative histology-genomic analysis via multimodal deep learning' by R.Chen et al 
+    https://pubmed.ncbi.nlm.nih.gov/35944502/ 
+    
+    Variables:
+    d : dimension of molecular vector
+    d_out : dimnesion of embedded output vector 
+    """
+    def __init__(self,d : int,d_out : int = 32,activation="SELU"):
+        super(SNN,self).__init__()
+        
+        self.lin1 = nn.Linear(d,256)
+        self.lin2 = nn.Linear(256,256)
+        self.alphadropout1 = nn.AlphaDropout(p=0.5)
+        self.alphadropout2 = nn.AlphaDropout(p=0.5)
+        self.fc = nn.Linear(256,d_out)
+        if activation=="SELU":
+            torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
+            torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
+            torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
+            self.selu1 = nn.SELU()
+            self.selu2 = nn.SELU()
+            self.selu3 = nn.SELU()
+        elif activation=="RELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.ReLU()
+            self.selu2 = nn.ReLU()
+            self.selu3 = nn.ReLU()
+        
+        elif activation=="GELU":
+            torch.nn.init.kaiming_normal_(self.lin1.weight)
+            torch.nn.init.kaiming_normal_(self.lin2.weight)
+            torch.nn.init.kaiming_normal_(self.fc.weight)
+            self.selu1 = nn.GELU()
+            self.selu2 = nn.GELU()
+            self.selu3 = nn.GELU()
 
+    def forward(self,x):
+
+        x = self.alphadropout1(self.selu1(self.lin1(x)))
+        x = self.alphadropout2(self.selu2(self.lin2(x)))
+        x = self.fc(x)
+        return self.selu3(x)
+    
+    
+def Mean_Aggregation(latent_x,latent_y):
+    return torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
+def Concat_Mean_Aggregation(latent_x,latent_y):
+    return  torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+        
+    
+    
 
 class SupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,ckpt_path=None,ffcv=False,encode_gen=True):
+    def __init__(self,lr,nbins,alpha,ckpt_path=None,ffcv=False,encode_gen=True,aggregation_func="Concat_Mean_Aggregation"):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -102,10 +102,11 @@ class SupViTSurv(pl.LightningModule):
             self.model.load_state_dict(state_dict, strict=False)
         
         
-        self.classification_head =  Classifier_Head(2*192,d_hidden=256,t_bins=nbins)
+        f_class = 1 if aggregation_func=="Mean_Aggregation" else 2 if aggregation_func=="Concat_Mean_Aggregation" else None
+        self.classification_head =  Classifier_Head(f_class*192,d_hidden=128*f_class,t_bins=nbins)
         
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
-        
+        self.aggregation = Mean_Aggregation if aggregation_func=="Mean_Aggregation" else Concat_Mean_Aggregation if aggregation_func=="Concat_Mean_Aggregation" else None
         self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
         #prediction
         self.encode_gen = encode_gen
@@ -115,7 +116,7 @@ class SupViTSurv(pl.LightningModule):
         latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y.unsqueeze(1), self.ids_shuffle)
         latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
         pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
-        conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
+        conc_latent = self.aggregation(latent_x,latent_y)
         surv_logits = self.classification_head(conc_latent)
         return pred,mask,surv_logits
 
@@ -124,12 +125,12 @@ class SupViTSurv(pl.LightningModule):
         pred,mask,surv_logits = self(hist_tile,gen)
         
         loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
-        loss_surv = self.criterion(surv_logits,censorship,label)
+        loss_Surv = self.criterion(surv_logits,censorship,label)
         
         self.log("train_MAEloss", loss_MAE)
-        self.log("train_Survloss",loss_surv)
+        self.log("train_Survloss",loss_Surv)
         self.log("learning_rate",self.hparams.lr)
-        return loss_MAE+loss_surv
+        return loss_MAE+loss_Surv
     
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch
@@ -144,21 +145,6 @@ class SupViTSurv(pl.LightningModule):
             #self.log(f"{stage}_acc", acc, prog_bar=True)
         
     
-    def oldpredstp(self, batch, batch_idx,ids_shuffle,mask_ratio=0.8):
-        with torch.no_grad():
-            if self.encode_gen:
-                x,y, coords = batch
-                y = self.y_encoder(y)
-                latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y.unsqueeze(1), ids_shuffle)
-                latent_x,latent_y = torch.split(latent,split_size_or_sections=[latent.size(1)-1,1],dim=1)
-                conc_latent = torch.cat((torch.mean(latent_x,dim=1),latent_y.squeeze(1)),dim=1)
-                return latent_x,conc_latent,coords,ids_restore
-            else:
-                x,y, coords = batch
-                latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, ids_shuffle)
-                #latent = torch.mean(latent,dim=1)
-                return latent,coords,ids_restore
-        
     def predict_step(self, batch, batch_idx,mask_ratio=0):
         x,y= batch
         
@@ -190,6 +176,7 @@ class SupViTSurv(pl.LightningModule):
             )
         
         return {"optimizer": optimizer}
+
 
 
 class VitTiny(pl.LightningModule):
@@ -343,53 +330,55 @@ class VitTiny_freeze(pl.LightningModule):
         
         return {"optimizer": optimizer}
 
-
-
-class SNN(nn.Module):
-    """ Implementation of SNN as described in 'Pan-cancer integrative histology-genomic analysis via multimodal deep learning' by R.Chen et al 
-    https://pubmed.ncbi.nlm.nih.gov/35944502/ 
+class Resnet18Surv(pl.LightningModule):
+    def __init__(self,lr,nbins,alpha):
+        super().__init__()
+        self.lr = lr
+        self.nbins = nbins
+        self.frozen_flag = True
+        
+        # Model
+        self.resnet18 = resnet18(pretrained=True)
+        self.resnet18.fc = nn.Identity()
+        self.classification_head =  Classifier_Head(512,d_hidden=256,t_bins=nbins)
+        # Loss
+        self.criterion = Survival_Loss(alpha)
+        
+        self.save_hyperparameters()
     
-    Variables:
-    d : dimension of molecular vector
-    d_out : dimnesion of embedded output vector 
-    """
-    def __init__(self,d : int,d_out : int = 32,activation="SELU"):
-        super(SNN,self).__init__()
-        
-        
-        self.lin1 = nn.Linear(d,256)
-        
+    def forward(self, x):
+        out = self.resnet18(x)
+        out = self.classification_head(out)
+        return out
 
-        self.lin2 = nn.Linear(256,256)
-        self.alphadropout1 = nn.AlphaDropout(p=0.5)
-        self.alphadropout2 = nn.AlphaDropout(p=0.5)
-        self.fc = nn.Linear(256,d_out)
-        if activation=="SELU":
-            torch.nn.init.normal_(self.lin1.weight, mean=0, std=1/d**0.5)
-            torch.nn.init.normal_(self.lin2.weight, mean=0, std=1/256**0.5)
-            torch.nn.init.normal_(self.fc.weight, mean=0, std=1/256**0.5)
-            self.selu1 = nn.SELU()
-            self.selu2 = nn.SELU()
-            self.selu3 = nn.SELU()
-        elif activation=="RELU":
-            torch.nn.init.kaiming_normal_(self.lin1.weight)
-            torch.nn.init.kaiming_normal_(self.lin2.weight)
-            torch.nn.init.kaiming_normal_(self.fc.weight)
-            self.selu1 = nn.ReLU()
-            self.selu2 = nn.ReLU()
-            self.selu3 = nn.ReLU()
+    def training_step(self, batch, batch_idx):
+        hist_tile,gen, censorship, label,label_cont = batch
+        logits = self(hist_tile)
+        loss = self.criterion(logits,censorship,label)
+        self.log("train_loss", loss)
+        self.log("learning_rate",self.hparams.lr)
+        return loss
+    
+    def evaluate(self, batch, stage=None):
+        hist_tile,gen, censorship, label,label_cont = batch
+        logits = self(hist_tile)
+        loss = self.criterion(logits,censorship,label)
+            
+        if stage:
+            self.log(f"{stage}_loss", loss, prog_bar=True,sync_dist=True)
+            #self.log(f"{stage}_acc", acc, prog_bar=True)
         
-        elif activation=="GELU":
-            torch.nn.init.kaiming_normal_(self.lin1.weight)
-            torch.nn.init.kaiming_normal_(self.lin2.weight)
-            torch.nn.init.kaiming_normal_(self.fc.weight)
-            self.selu1 = nn.GELU()
-            self.selu2 = nn.GELU()
-            self.selu3 = nn.GELU()
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, "val")
 
-    def forward(self,x):
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, "test")
 
-        x = self.alphadropout1(self.selu1(self.lin1(x)))
-        x = self.alphadropout2(self.selu2(self.lin2(x)))
-        x = self.fc(x)
-        return self.selu3(x)
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            filter(lambda p: p.requires_grad, self.parameters()),
+            lr=self.lr,
+            )
+        
+        return {"optimizer": optimizer}
+
