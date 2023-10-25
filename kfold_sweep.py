@@ -6,7 +6,7 @@ import torch
 import collections
 import pandas as pd
 import multiprocessing
-
+import argparse
 from models.Aggregation_Models import *
 from trainer.Aggregation_Trainer import *
 from datasets.Aggregation_DS import *
@@ -68,7 +68,7 @@ def train(sweep_q, worker_q):
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     csv_path = config["csv_path"]
     d_hist,feature_path = config["dim_hist_and_feature_path"]
-    
+    gen_augmentation = config["gen_augmentation"]
     #setup file paths and read CSV #TODO more general solution needed if time 
     storepath = os.path.join(datapath,f"/results/{modality}sweep") # not used! 
     
@@ -82,22 +82,22 @@ def train(sweep_q, worker_q):
     
     #Initialize Dataset and Model based on Modality
     if modality=="Porpoise":
-        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
-        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
+        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
         model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation,bins=bins).to(device)
         
     
     elif modality=="PrePorpoise":
-        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True)
-        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False)
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
+        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
         model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins).to(device)
         
     
     elif modality=="gen":
-        train_ds = Gen_Dataset(df,data_path = feature_path,train=True)
-        val_ds = Gen_Dataset(df,data_path = feature_path,train=False)
+        train_ds = Gen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
+        val_ds = Gen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
         model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation).to(device)
         
@@ -139,8 +139,7 @@ def train(sweep_q, worker_q):
     
 
 
-def main():
-    num_folds = 4 # TODO num folds from config file via sys arg
+def main(num_folds):
     # Spin up workers before calling wandb.init()
     # Workers will be blocked on a queue waiting to start
     sweep_q = multiprocessing.Queue()
@@ -198,4 +197,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Wandb sweep with k-fold cross validation")
+    parser.add_argument("--folds", type=int, required=False,default=4, help="Number of folds")
+    
+    args = parser.parse_args()
+    num_folds = args.folds
+    main(num_folds)

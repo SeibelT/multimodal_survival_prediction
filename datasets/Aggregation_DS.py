@@ -3,9 +3,10 @@ import pandas as pd
 import torch 
 import h5py
 import os 
+from torchvision import transforms
 
 class HistGen_Dataset(Dataset):
-    def __init__(self,df,data_path,train=None,mode="kfold"):
+    def __init__(self,df,data_path,train=None,mode="kfold",gen_augmentation=None):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
@@ -26,6 +27,10 @@ class HistGen_Dataset(Dataset):
         
         self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
 
+        if (gen_augmentation is not None) and (train or ( mode == "train")):
+            self.transform = Noise(alpha=gen_augmentation)
+        else:
+            self.transform = transforms.Compose([])
 
     def __len__(self):
         return len(self.df)
@@ -43,12 +48,12 @@ class HistGen_Dataset(Dataset):
         label = torch.tensor(self.df.iat[idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df.iat[idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df.iat[idx,3]).type(torch.float32)
-        return tensor_file, self.genomics_tensor[idx], censorship,  label,label_cont
+        return tensor_file, self.transform(self.genomics_tensor[idx]), censorship,  label,label_cont
 
         
 
 class Gen_Dataset(Dataset):
-    def __init__(self,df,data_path,train=None,mode="kfold"):
+    def __init__(self,df,data_path,train=None,mode="kfold",gen_augmentation=None):
         # no transformation needed 
         self.df = df 
         self.data_path = data_path
@@ -68,7 +73,11 @@ class Gen_Dataset(Dataset):
             
         self.genomics_tensor = torch.Tensor(self.df[self.df.keys()[11:]].to_numpy()).to(torch.float32)
         self.df = self.df[["slide_id","survival_months_discretized","censorship","survival_months"]]
-
+        
+        if (gen_augmentation is not None) and (train or ( mode == "train")):
+            self.transform = Noise(alpha=gen_augmentation)
+        else:
+            self.transform = transforms.Compose([])
 
     def __len__(self):
         return len(self.df)
@@ -83,7 +92,8 @@ class Gen_Dataset(Dataset):
         label = torch.tensor(self.df.iat[idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df.iat[idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df.iat[idx,3]).type(torch.float32)
-        return self.genomics_tensor[idx], censorship,  label,label_cont
+        
+        return self.transform(self.genomics_tensor[idx]), censorship,  label,label_cont
 
         
 
@@ -123,3 +133,13 @@ class Hist_Dataset(Dataset):
         return tensor_file, censorship,  label,label_cont
 
         
+class Noise(object):
+    def __init__(self, alpha):
+        self.alpha = alpha
+        assert isinstance(float(alpha),float),"alpha value not a number"
+        
+    def __call__(self, input):
+        return input + self.alpha*torch.rand_like(input)
+    
+    def __repr__(self):
+        return self.__class__.__name__ + f"alpha={self.alpha}"
