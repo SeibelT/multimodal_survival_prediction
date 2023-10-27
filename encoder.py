@@ -51,7 +51,7 @@ def train(world_size, train_settings, monitoring):
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
             callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//10 if train_settings["max_epochs"]>10 else 1)],
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,enable_version_counter=True)],
             
                             )
     else:

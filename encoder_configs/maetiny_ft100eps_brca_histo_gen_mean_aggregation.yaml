@@ -39,11 +39,14 @@ train_settings:
                  
         
 encode_settings:
-        save_path : /nodes/bevog/work4/seibel/data/testing_storetileds
-        new_ds_name : new_loop_test1
-        mycheckpnt : /nodes/bevog/work4/seibel/data/testing/lightning_logs/o8svd1da/checkpoints/epoch=19-step=36180.ckpt
-        encode_gen : false
-        ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_TCGA_BRCA_FT_HIST_GEN_mean_aggregation100eps
+        new_ds_name : pt_files
+        mycheckpnt : /home/seibel/maetiny_ft100eps_brca_histo_gen_mean_aggregation/epoch=99-step=180900.ckpt
+        encode_gen : true
+        ckpt_path : 
+        batch_size : 128
+        num_workers : 3
+        pin_memory : true
         model_name : SupViTSurv
         model_params : 
                 lr : 0.01
@@ -51,7 +54,9 @@ encode_settings:
                 alpha : 0.1
                 aggregation_func : Mean_Aggregation
         df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
-        df_data_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv
+        df_data_paths : [/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv]
         cntd : true
+
+       
 
 
