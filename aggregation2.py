@@ -40,8 +40,6 @@ def aggregation():
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
     num_workers = config["num_workers"]
     do_test = True
-    kfold = config["kfold"] 
-    num_fold = 5
     if kfold is not None:
         csv_path_kfold = os.path.join(config["csv_path"],"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
         df_kfold = pd.read_csv(csv_path_kfold)
