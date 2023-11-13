@@ -1,4 +1,4 @@
-project: kfold_models_replication_alpha_sweep
+project: optimal_parameter_search
 entity: tobias-seibel
 method: grid
 metric:
@@ -10,39 +10,38 @@ parameters:
   epochs:
     value: 20
   alpha:
-    values: [0.002275,0.1243,0.045,0.44813]
+    values: [0.002275,0.44813]
   l1_lambda:
     value: 1e-5
   d_gen_out:
     value: 32
   d_hidden:
-    value: 256
+    values: [256,128]
   learningrate:
-    value: 2e-4
+    value: 1e-6
   activation:
     value: SELU
   bins:
     value: 4
   modality:
-    values: [Porpoise,hist,gen]
+    values: [Porpoise,PrePorpoise,gen,hist,hist_attention]
   batchsize:
     value: 1
   datapath:
     value: /nodes/bevog/work4/seibel/data
   dropout:
-    value: 0
+    values: [0.3,0.5]
   storepath:
     value: /work4/seibel/data/results
   csv_path:
-    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes
+    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes/trainvalidation_4foldsplit
   dim_hist_and_feature_path:
-    value: [2048,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files]
-  kfold:
-    values: [0,1,2,3,4]
+    value: [192,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_TCGA_BRCA_FT_HIST_GEN_mean_aggregation100eps/pt_files]
   repeating:
     value: none
-
+  gen_augmentation:
+    values: [null]
   
 command:
   - python3
-  - aggregation2.py
+  - kfold_sweep.py

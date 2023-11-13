@@ -40,6 +40,8 @@ def aggregation():
     storepath = os.path.join(config["storepath"],f"{modality}sweep")  
     num_workers = config["num_workers"]
     do_test = True
+    kfold = config["kfold"] 
+    num_fold = 5
     if kfold is not None:
         csv_path_kfold = os.path.join(config["csv_path"],"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
         df_kfold = pd.read_csv(csv_path_kfold)
@@ -49,6 +51,7 @@ def aggregation():
         df_train = df_kfold
         df_val = df_kfold
         do_test = False
+        
         
         #assert not do_test, "kfold not applicable with test"
     else:
@@ -83,6 +86,19 @@ def aggregation():
         d_gen = train_ds.gen_depth()
         model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
+    elif modality=="PrePorpoise_meanagg_attmil":
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden,attmil=True).to(device)
+    
+    elif modality=="PrePorpoise_meanagg":
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden,attmil=False).to(device)
     
     elif modality=="gen":
         train_ds = Gen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
@@ -94,6 +110,7 @@ def aggregation():
         
     
     elif modality=="hist":
+        
         train_ds = Hist_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
         val_ds = Hist_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
         if do_test:
@@ -107,10 +124,11 @@ def aggregation():
             test_ds = Hist_Dataset(df_test,data_path = feature_path,mode="test")
         model = TransformerMil_Survival(d_hist=dim_hist,bins=bins,dropout=dropout,d_hidden=d_hidden).to(device)
     
-   
+    
     criterion = Survival_Loss(alpha) 
     training_dataloader = torch.utils.data.DataLoader( train_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
     if do_test:
+        
         test_dataloader = torch.utils.data.DataLoader(test_ds,batch_size=batchsize,num_workers=num_workers,pin_memory=True)
     else: 
         test_dataloader = None 
@@ -119,17 +137,19 @@ def aggregation():
     
     #run.watch(model,log_freq=1,log="all")
     #run trainer
-    if modality in ["Porpoise","PrePorpoise",]:
+    if modality in ["Porpoise","PrePorpoise","PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"]:
         MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,testloader=test_dataloader
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
+        
         Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,testloader=test_dataloader
                     )
-   
-if __name__ == "__main__":     
+    
+if __name__ == "__main__":    
+    
     aggregation()

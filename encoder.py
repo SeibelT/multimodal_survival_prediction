@@ -47,11 +47,11 @@ def train(world_size, train_settings, monitoring):
             num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
             max_steps = train_settings["max_steps"],
             profiler = train_settings["profiler"],
-            strategy = "ddp",
+            strategy = "ddp_find_unused_parameters_true",
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
             callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,enable_version_counter=True)],
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
             
                             )
     else:
@@ -95,16 +95,15 @@ def train(world_size, train_settings, monitoring):
     if monitoring:
         wandb.finish()
 
-def encode(**kargs):
+def encode(inference_settings):
     save_path = inference_settings["save_path"] 
     new_ds_name = inference_settings["new_ds_name"] 
     mycheckpnt = inference_settings["mycheckpnt"]  # TODO rename this->?  and ckpt_path-> pretrainedMAEI1K_path or something
     encode_gen = inference_settings["encode_gen"]
-    ckpt_path = inference_settings["ckpt_path"]
     batch_size = inference_settings["batch_size"]
     num_workers = inference_settings["num_workers"]
     pin_memory = inference_settings["pin_memory"]
-    model =  globals()[inference_settings["model_name"]](ffcv = False,encode_gen=encode_gen,ckpt_path=ckpt_path,**inference_settings["model_params"])
+    model =  globals()[inference_settings["model_name"]](ffcv = False,encode_gen=encode_gen,**inference_settings["model_params"])
     
     if mycheckpnt is not None:
         print("Load Modelweights")
@@ -165,6 +164,6 @@ if __name__ == "__main__":
         train(num_gpus, train_settings,wandb_settings["monitoring"])
     elif mode=="encode":
         inference_settings = config["encode_settings"]
-        encode(**inference_settings)
+        encode(inference_settings)
     
     

@@ -63,7 +63,11 @@ def train(sweep_q, worker_q):
     l1_lambda = config["l1_lambda"]
     activation = config["activation"]
     modality = config["modality"]
-    assert modality in ["Porpoise","PrePorpoise","gen","hist","hist_attention"],"Modality name not known"
+    assert modality in ["Porpoise","PrePorpoise",
+                        "gen","hist","hist_attention",
+                        "PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"
+                        ],"Modality name not known"
+    
     dropout = config["dropout"]
     datapath = config["datapath"] #absolute path  '"/work4/seibel/data'
     csv_path = config["csv_path"]
@@ -71,7 +75,7 @@ def train(sweep_q, worker_q):
     gen_augmentation = config["gen_augmentation"]
     #setup file paths and read CSV #TODO more general solution needed if time 
     storepath = os.path.join(datapath,f"/results/{modality}sweep") # not used! 
-    
+    d_hidden=config["d_hidden"]
     csv_path = os.path.join(csv_path,"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
     
     
@@ -85,32 +89,44 @@ def train(sweep_q, worker_q):
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
-        model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation,bins=bins).to(device)
+        model = Porpoise(d_hist=d_hist,d_gen=d_gen,d_gen_out=d_gen_out,device=device,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     
     elif modality=="PrePorpoise":
         train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
         val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
-        model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins).to(device)
-        
+        model = PrePorpoise(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
+    
+    elif modality=="PrePorpoise_meanagg_attmil":
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
+        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins,attmil=True,d_hidden=d_hidden).to(device)
+    
+    elif modality=="PrePorpoise_meanagg":
+        train_ds = HistGen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
+        val_ds = HistGen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=d_hist,d_gen=d_gen,d_transformer=d_hist//4,dropout=dropout,activation=activation,bins=bins,attmil=False,d_hidden=d_hidden).to(device)
+    
     
     elif modality=="gen":
         train_ds = Gen_Dataset(df,data_path = feature_path,train=True,gen_augmentation=gen_augmentation)
         val_ds = Gen_Dataset(df,data_path = feature_path,train=False,gen_augmentation=gen_augmentation)
         d_gen = train_ds.gen_depth()
-        model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation).to(device)
+        model = SNN_Survival(d_gen,d_gen_out,bins=bins,device=device,activation=activation,d_hidden=d_hidden).to(device)
         
     
     elif modality=="hist":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         val_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = AttMil_Survival(d_hist=d_hist,bins=bins,device=device).to(device)
+        model = AttMil_Survival(d_hist=d_hist,bins=bins,device=device,d_hidden=d_hidden).to(device)
         
     elif modality=="hist_attention":
         train_ds = Hist_Dataset(df,data_path = feature_path,train=True)
         val_ds = Hist_Dataset(df,data_path = feature_path,train=False)
-        model = TransformerMil_Survival(d_hist=d_hist,bins=bins,dropout=dropout).to(device)
+        model = TransformerMil_Survival(d_hist=d_hist,bins=bins,dropout=dropout,d_hidden=d_hidden).to(device)
     
    
     criterion = Survival_Loss(alpha) 
@@ -119,7 +135,7 @@ def train(sweep_q, worker_q):
     optimizer = torch.optim.Adam(model.parameters(),lr=learningrate,betas=[0.9,0.999],weight_decay=1e-5,)
     
     #run trainer
-    if modality in ["Porpoise","PrePorpoise",]:
+    if modality in ["Porpoise","PrePorpoise","PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"]:
         c_vals,risk_fold,c_fold,l_con_fold = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,

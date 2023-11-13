@@ -142,7 +142,7 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                 loss = criterion(out,c,l) + 0.5 * l1_lambda * (torch.norm(weights1,1)+torch.norm(weights2,1)).cpu()
             
                 
-            elif modality=="PrePorpoise":
+            elif modality in ["PrePorpoise","PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"]:
                 weights1 = torch.cat([x.flatten() for x in model.SNN.parameters()]) 
                 weights2 = torch.cat([x.flatten() for x in model.Encoder.parameters()]) 
             

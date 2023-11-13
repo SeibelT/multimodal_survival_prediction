@@ -1,6 +1,14 @@
 import torch 
 from torch import nn 
 
+
+class Channel_mean(nn.Module):
+    def __init__(self):
+        super(Channel_mean,self).__init__()
+    def forward(self, x):
+        return torch.mean(x,dim=1)
+    
+    
 class AttMil(nn.Module):
     """ 
     Implementation of  
@@ -165,7 +173,7 @@ class Classifier_Head(nn.Module):
         self.linear2  = nn.Linear(d_hidden,d_hidden)
         torch.nn.init.kaiming_normal_(self.linear2.weight)
         self.activ2 = nn.ReLU()
-        self.fc = nn.Linear(d_hidden,t_bins) # TODO test add layer
+        self.fc = nn.Linear(d_hidden,t_bins) 
         
         self.dropout1 = nn.Dropout(p=p_dropout_head)
         self.dropout2 = nn.Dropout(p=p_dropout_head)
@@ -255,7 +263,7 @@ class SNN_Survival(nn.Module):
 
 class TransformerMil_Survival(nn.Module):
     """
-        Unimodel: hist survival model  with attntion 
+        Unimodal: hist survival model  with attntion 
     """
     def __init__(self,d_hist,bins,dropout,d_transformer=512, d_hidden = 256):
         super(TransformerMil_Survival,self).__init__()
@@ -274,3 +282,31 @@ class TransformerMil_Survival(nn.Module):
         out = x.mean(dim=-2)
         out = self.lin_embedder2(out)
         return self.Classifier_Head(out)
+    
+    
+    
+class PrePorpoise_meanagg(nn.Module):
+    """
+    Combining all modules to the complete PORPOISE model 
+    """
+    def __init__(self,d_hist,d_gen,d_transformer,dropout,activation,bins,attmil,d_hidden=256):
+        super(PrePorpoise_meanagg,self).__init__()
+        self.SNN = SNN(d =d_gen ,d_out = d_transformer,activation=activation)
+        self.lin_embedder1 = nn.Linear(d_hist,d_transformer)
+        if attmil:
+            self.Encoder = AttMil(d=d_transformer)
+            self.Classifier_Head = Classifier_Head(outsize = d_transformer//2,d_hidden=d_hidden,t_bins=bins)
+        else:
+            self.Encoder = nn.Sequential(nn.TransformerEncoderLayer(d_transformer,nhead=2,dropout=dropout,activation=nn.GELU(),batch_first=True),
+                                         nn.Linear(d_transformer,d_transformer//2),
+                                         Channel_mean(),
+                                         )
+        self.Classifier_Head = Classifier_Head(outsize = d_transformer//2,d_hidden=d_hidden,t_bins=bins)
+
+    def forward(self,hist,gen):
+        gen = self.SNN(gen)
+        hist = self.lin_embedder1(hist)
+        multimodal = torch.cat((gen.unsqueeze(1),hist),dim=1)
+        encoded = self.Encoder(multimodal)
+        return self.Classifier_Head(encoded)
+

@@ -20,7 +20,7 @@ def dropmissing(df,name,feature_path):
         return df
     
 def aggregation():
-    run = wandb.init(WANDB_DIR="/nodes/bevog/work4/seibel/data/wandb",WANDB_CACHE_DIR="/nodes/bevog/work4/seibel/data/wandb")
+    run = wandb.init()
     
     config=dict(run.config)
     run_name = run.name or  "unknown"
@@ -70,7 +70,21 @@ def aggregation():
         test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
         model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
-        
+    
+    elif modality=="PrePorpoise_meanagg_attmil":
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden,attmil=True).to(device)
+    
+    elif modality=="PrePorpoise_meanagg":
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+        test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
+        d_gen = train_ds.gen_depth()
+        model = PrePorpoise_meanagg(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden,attmil=False).to(device)
+    
     
     elif modality=="gen":
         train_ds = Gen_Dataset(df_train,data_path = feature_path,mode="train")
@@ -101,7 +115,7 @@ def aggregation():
     
     #run.watch(model,log_freq=1,log="all")
     #run trainer
-    if modality in ["Porpoise","PrePorpoise",]:
+    if modality in ["Porpoise","PrePorpoise","PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"]:
         MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,testloader=test_dataloader

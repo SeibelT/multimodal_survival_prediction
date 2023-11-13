@@ -1,18 +1,16 @@
-project: kfold_porpoise_replication_alpha_sweep
+project: final_result
 entity: tobias-seibel
-method: bayes
+method: grid
 metric:
   goal: maximize
-  name: c_index_last
+  name: valid/c_index
 parameters:
   num_workers :
     value :  2
   epochs:
     value: 20
   alpha:
-    distribution: log_uniform_values
-    min: 0.00001
-    max: 1.0
+    value: 0.002275
   l1_lambda:
     value: 1e-5
   d_gen_out:
@@ -36,13 +34,15 @@ parameters:
   storepath:
     value: /work4/seibel/data/results
   csv_path:
-    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes
+    value: /nodes/bevog/work4/seibel/data/tile_encoder_dataframes
   dim_hist_and_feature_path:
     value: [2048,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files]
-  
+  repeating:
+    values: [1,2,3,4,5,6,7,8,9,10]
+  kfold:
+    values: [null]
 
   
 command:
   - python3
-  - kfold_sweep.py
-  - "--folds=5"
+  - aggregation2.py
