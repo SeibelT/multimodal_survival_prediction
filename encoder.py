@@ -15,6 +15,9 @@ from datasets.Tile_DS import *
 from utils.Encoder_Utils import create_feature_ds
 
 def train(world_size, train_settings, monitoring):
+    assert os.path.exists(train_settings["save_dir"]), "save_dir does not exist!"
+    assert os.path.exists(train_settings["default_root_dir"]),"save_dir does not exist!"
+    
     do_test = train_settings["do_test"]  
     default_root_dir = train_settings["default_root_dir"]  
     checkpoint_path = train_settings["checkpoint_path"] 
@@ -47,25 +50,26 @@ def train(world_size, train_settings, monitoring):
             num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
             max_steps = train_settings["max_steps"],
             profiler = train_settings["profiler"],
-            strategy = "ddp_find_unused_parameters_true",
+            strategy = "ddp",#"ddp_find_unused_parameters_true"
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
             callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
-            
+                         #ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1)],
                             )
     else:
         trainer = pl.Trainer(
         default_root_dir=default_root_dir, 
-        accelerator=train_settings["accelerator"],
+        accelerator="gpu",
         devices=1,
         log_every_n_steps=train_settings["log_every_n_steps"],
         max_steps=train_settings["max_steps"],
         profiler=train_settings["profiler"],
         logger=wandb_logger if monitoring else False,
         max_epochs=train_settings["max_epochs"],
-        callbacks=[StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,]
-                        )
+        callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
+                           )
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
         tuner =Tuner(trainer)

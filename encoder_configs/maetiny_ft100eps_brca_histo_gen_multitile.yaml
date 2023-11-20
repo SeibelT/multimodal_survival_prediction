@@ -3,38 +3,43 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : maetiny_ft100eps_brca_histo_gen_dropout70p
+        name : maetiny_ft100eps_brca_histo_gen_multitile5
 train_settings:
         ffcv : false
-        model_name : SupViTSurv
-        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p
-        max_epochs : 100
-        stochastic_weightaveraging : true
-        annealing_epochs : 110
+        model_name : MultiSupViTSurv
+        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile
+        max_epochs : 26
+        stochastic_weightaveraging : false
+        annealing_epochs : 30
         checkpoint_path : 
         do_test : true
-        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p
+        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile
         max_steps : -1
         monitor_weights_gradients : true
         profiler : #simple
         log_every_n_steps : 100
         tune : false
-        model_params : 
+        model_params :
+                
                 lr : 0.0001
                 nbins : 4
+                n_neighbours : 2
                 alpha : 0.25
                 encode_gen : true
                 aggregation_func : Mean_Aggregation
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
-                p_dropout_head : 0.7
+                p_dropout_head : 0.5
         datamodule :  TileModule
         dataset_params : 
+                multitile : true
+                n_neighbours : 2
                 df_path_train : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv
                 df_path_test : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv
                 df_path_val : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv
+                tile_df_path_multi : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-Tiles_Multitileds.csv
                 tile_df_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
-                batch_size : 512
-                num_workers : 6
+                batch_size : 128
+                num_workers : 8
                 pin_memory : true
                 
                  

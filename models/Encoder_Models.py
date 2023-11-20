@@ -8,6 +8,7 @@ from torchmetrics import Accuracy
 from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch
 import h5py
+import copy
 
 
 class Classifier_Head(nn.Module):
@@ -500,7 +501,7 @@ class Resnet18Surv(pl.LightningModule):
 
 
 class MultiSupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,aggregation_func,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
+    def __init__(self,lr,nbins,n_neighbours,alpha,aggregation_func,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -524,6 +525,8 @@ class MultiSupViTSurv(pl.LightningModule):
         self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
         #prediction
         self.encode_gen = encode_gen
+        self.lin_encs =  nn.ModuleList([copy.deepcopy(self.model.patch_embed) for i in range(n_neighbours)]+[self.model.patch_embed])
+        
         
     def forward(self, x,y):
         y = self.y_encoder(y)
@@ -539,12 +542,13 @@ class MultiSupViTSurv(pl.LightningModule):
         ####
         y = self.y_encoder(gen)
         nn_tiles.append(hist_tile)
+        
         x_enc = []
         ids_restore_list = []
         masks = []
-        for x in nn_tiles:
+        for lin_encoding,x in zip(self.lin_encs,nn_tiles):
             # embed patches
-            x = self.model.patch_embed(x)
+            x =  lin_encoding(x) #self.model.patch_embed(x)
             # add pos embed w/o cls token
             x = x + self.model.pos_embed[:, 1:, :]
             # masking: length -> length * mask_ratio
@@ -563,44 +567,43 @@ class MultiSupViTSurv(pl.LightningModule):
             x_enc = blk(x_enc)
         x_enc = self.model.norm(x_enc)
 
-        latent_x,latent_y = torch.split(x_enc,split_size_or_sections=[x_enc.size(1)-1,1],dim=1)
-        conc_latent = self.aggregation(latent_x,latent_y)
-        surv_logits = self.classification_head(conc_latent)
-        loss_Surv = self.criterion(surv_logits,censorship,label)
-        
+        cls_token_enc,latent_x,latent_y = torch.split(x_enc,split_size_or_sections=[1,x_enc.size(1)-2,1],dim=1)
+        #conc_latent = self.aggregation(latent_x,latent_y)
+        #surv_logits = self.classification_head(conc_latent)
+        #loss_Surv = self.criterion(surv_logits,censorship,label)
         #decode
         latent_x = self.model.decoder_embed(latent_x)
-        latent_x_ = latent_x[:, 1:, :] # no cls token
-        cls_token_enc = latent_x[:, :1, :]
+        cls_token_dec = self.model.decoder_embed(cls_token_enc)
+        #cls_token_enc,latent_x_ = torch.split(latent_x,split_size_or_sections=[1,latent_x.size(1)-1],dim=1)
+        latent_x_sep = torch.split(latent_x,split_size_or_sections=len(nn_tiles),dim=1)
         
-        latent_x_sep = torch.split(latent_x_,split_size_or_sections=len(nn_tiles),dim=1)
+        surv_logits = self.classification_head(cls_token_enc)
+        loss_Surv = self.criterion(surv_logits,censorship,label)
+        
+        
         losses = []
         for x_out,ids_restore,tile,mask in zip(latent_x_sep,ids_restore_list,nn_tiles,masks):
             mask_tokens = self.model.mask_token.repeat(x_out.shape[0], ids_restore.shape[1] - x_out.shape[1], 1)
             x_out_ = torch.cat([x_out, mask_tokens], dim=1) 
-            x_ = torch.gather(x_out_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x_out_.shape[2]))  # unshuffle
-            x = torch.cat([cls_token_enc, x_], dim=1)  # append cls token
+            x_unshfld = torch.gather(x_out_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x_out_.shape[2]))  # unshuffle
+            x_dec = torch.cat([cls_token_dec, x_unshfld], dim=1)  # append cls token
             # add pos embed
-            x = x + self.model.decoder_pos_embed
+            x_dec = x_dec + self.model.decoder_pos_embed
             # apply Transformer blocks
             for blk in self.model.decoder_blocks:
-                x = blk(x)
-            x = self.model.decoder_norm(x)
+                x_dec = blk(x_dec)
+            x_dec = self.model.decoder_norm(x_dec)
             # predictor projection
-            x = self.model.decoder_pred(x)
+            x_dec = self.model.decoder_pred(x_dec)
             # remove cls token
-            x = x[:, 1:, :]
-            loss_MAE = self.model.forward_loss(tile, x, mask)
+            x_dec = x_dec[:, 1:, :]
+            loss_MAE = self.model.forward_loss(tile, x_dec, mask)
             losses.append(loss_MAE)
         
         ####
-        
-        
-        
         for i,loss in enumerate(losses):
            self.log(f"train_MAEloss{i}", loss)
         self.log("train_Survloss",loss_Surv)
-        self.log("learning_rate",self.hparams.lr)
         return sum(losses)+loss_Surv
     
     def evaluate(self, batch, stage=None):
@@ -748,3 +751,198 @@ class SupViTSurv2(pl.LightningModule):
         
         return {"optimizer": optimizer}
 
+
+
+
+
+class ViTMAEtiny_gen(pl.LightningModule):
+    def __init__(self,lr,aggregation_func,genomics,nbins,alpha,mask_ratio,encode_gen,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
+        super().__init__()
+        self.lr = lr
+        self.mask_ratio = mask_ratio
+        self.ids_shuffle = None
+        self.save_hyperparameters()
+        #Ensure
+        assert aggregation_func in ["Mean_Aggregation","Concat_Mean_Aggregation"]
+        #ViT 
+        self.model = mae_vit_tiny_patch16()
+        
+        #Load weights
+        if ckpt_path is not None:
+            """Load Imagenet1K pretraining"""
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            state_dict = {k.replace("module.model.", ""): v for k, v in ckpt["model"].items()}
+            self.model.load_state_dict(state_dict, strict=False)
+        #Genmomics Modality
+        if genomics:
+            g_enc_dim = 192
+            self.y_encoder = self.encoded_y
+            self.snn = SNN(d=20971,d_out = 192,activation="SELU")
+            self.split_func = self.split_mm
+        else:
+            self.y_encoder = self.empty_y
+            self.split_func = self.split_um
+            
+        #Aggregationtype for Survival-Head and Encoding
+        if aggregation_func=="Mean_Aggregation":
+            self.aggregation = Mean_Aggregation
+        elif aggregation_func=="Concat_Mean_Aggregation":
+            self.aggregation = Concat_Mean_Aggregation
+        #Prediction
+        self.encode_gen = encode_gen
+        
+    def empty_y(self,y):
+        """helper function, returns empty vector"""
+        B = y.size(0)
+        return torch.rand(size=(B,0,192))
+    def encoded_y(self,y):
+        y = self.snn(y)
+        return y.unsqueeze(1)
+    def split_mm(self,x):
+        """helper function, split multimodal encoding"""
+        latent_x,latent_y = torch.split(x,split_size_or_sections=[x.size(1)-1,1],dim=1)
+        return latent_x,latent_y
+    def split_um(self,x):
+        """helper function, split unimodal encoding"""
+        B,_,d = x.size()
+        u = torch.rand(size=(B,0,192))
+        return x,u
+    
+    def forward(self,x,y):
+        y = self.y_encoder(y).to(x.device)
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y, self.ids_shuffle)
+        latent_x,latent_y = self.split_func(latent)
+        return latent_x,latent_y,mask,ids_restore
+
+    def training_step(self, batch, batch_idx):
+        hist_tile,gen, censorship, label,label_cont = batch
+        latent_x,latent_y,mask,ids_restore = self(hist_tile,gen)
+        pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+        
+        self.log("train_MAEloss", loss_MAE)
+        self.log("learning_rate",self.hparams.lr)
+        return loss_MAE
+    
+    def evaluate(self, batch, stage=None):
+        hist_tile,gen, censorship, label,label_cont = batch
+        latent_x,latent_y,mask,ids_restore = self(hist_tile,gen)
+        pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+            
+        if stage:
+            self.log(f"{stage}_MAEloss", loss_MAE,sync_dist=True)
+    
+    def predict_step(self, batch, batch_idx,mask_ratio=0):
+        x,y= batch
+        if self.encode_gen:
+            latent_x,latent_y,mask,ids_restore = self(x,y)
+            latent = self.aggregation(latent_x,latent_y.to(latent_x.device))
+        else:
+            y = self.empty_y(x).to(x.device)
+            latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y, self.ids_shuffle)
+            latent_x,latent_y = self.split_func(latent)
+            latent = self.aggregation(latent_x,latent_y.to(latent_x.device))
+        return (latent)
+            
+    
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, "test")
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            )
+        
+        return {"optimizer": optimizer}
+    
+
+
+
+
+class SupViTSurv_nogen(pl.LightningModule):
+    def __init__(self,lr,nbins,alpha,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
+        super().__init__()
+        self.lr = lr
+        self.nbins = nbins
+        self.mask_ratio = 0.75
+        self.ids_shuffle = None
+        self.save_hyperparameters()
+        #ViT 
+        self.model = mae_vit_tiny_patch16()
+        #load weights
+        if ckpt_path is not None:
+            ckpt = torch.load(ckpt_path, map_location="cpu")
+            state_dict = {k.replace("module.model.", ""): v for k, v in ckpt["model"].items()}
+            self.model.load_state_dict(state_dict, strict=False)
+        
+        aggregation_func="Mean_Aggregation"
+        self.classification_head =  Classifier_Head(192,d_hidden=128,t_bins=nbins,p_dropout_head=p_dropout_head)
+        self.criterion = Survival_Loss(alpha,ffcv=ffcv)
+        self.aggregation = Mean_Aggregation 
+        
+        
+        
+    def forward(self, x,y):
+        y = torch.rand((x.size(0),0,192))
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y, self.ids_shuffle)
+        conc_latent = torch.mean(latent,dim=1)
+
+        return mask,latent,ids_restore,conc_latent
+
+    def training_step(self, batch, batch_idx):
+        hist_tile,gen, censorship, label,label_cont = batch
+        mask, latent,ids_restore,conc_latent = self(hist_tile,gen)
+        pred = self.model.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        surv_logits = self.classification_head(conc_latent)
+        
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+        
+        
+        loss_Surv = self.criterion(surv_logits,censorship,label)
+        
+        self.log("train_MAEloss", loss_MAE)
+        self.log("train_Survloss",loss_Surv)
+        self.log("learning_rate",self.hparams.lr)
+        return loss_MAE+loss_Surv
+    
+    def evaluate(self, batch, stage=None):
+        hist_tile,gen, censorship, label,label_cont = batch
+        mask, latent,ids_restore,conc_latent = self(hist_tile,gen)
+        pred = self.model.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        surv_logits = self.classification_head(conc_latent)
+        
+        loss_MAE = self.model.forward_loss(hist_tile, pred, mask)
+        loss_Surv = self.criterion(surv_logits,censorship,label)
+            
+        if stage:
+            self.log(f"{stage}mae_loss", loss_MAE,sync_dist=True)
+            self.log(f"{stage}surv_loss", loss_Surv,sync_dist=True)
+            #self.log(f"{stage}_acc", acc, prog_bar=True)
+        
+    
+    def predict_step(self, batch, batch_idx,mask_ratio=0):
+        x,_= batch
+        y =  torch.rand((x.size(0),0,192))
+        latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, mask_ratio,y, self.ids_shuffle)
+        latent = torch.mean(latent,dim=1)
+        return (latent)
+            
+    
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, "test")
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            )
+        
+        return {"optimizer": optimizer}

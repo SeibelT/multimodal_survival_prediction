@@ -3,17 +3,18 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : maetiny_ft100eps_brca_histo_gen_dropout70p
+        name : maetiny_ft25eps_brca_histo_maesurv
 train_settings:
         ffcv : false
-        model_name : SupViTSurv
-        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p
-        max_epochs : 100
+        model_name : SupViTSurv_nogen
+        save_dir : /home/seibel/maetiny_ft25eps_brca_histo_maesurv
+        max_epochs : 26
         stochastic_weightaveraging : true
         annealing_epochs : 110
         checkpoint_path : 
         do_test : true
-        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p
+        default_root_dir : /home/seibel/maetiny_ft25eps_brca_histo_maesurv
+
         max_steps : -1
         monitor_weights_gradients : true
         profiler : #simple
@@ -22,7 +23,9 @@ train_settings:
         model_params : 
                 lr : 0.0001
                 nbins : 4
+                mask_ratio : 0.75
                 alpha : 0.25
+                genomics : true 
                 encode_gen : true
                 aggregation_func : Mean_Aggregation
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
@@ -37,21 +40,24 @@ train_settings:
                 num_workers : 6
                 pin_memory : true
                 
+                
                  
         
 encode_settings:
-        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/maetiny_ft25eps_brca_histo_gen_dropout70p
+        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/maetiny_ft25eps_brca_histo_gen_noSurv
         new_ds_name : pt_files
-        mycheckpnt : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p/epoch=24-step=45225.ckpt
+        mycheckpnt : /home/seibel/maetiny_ft25eps_brca_histo_gen_noSurv/epoch=XX-step=XXXXX.ckpt
         encode_gen : true
         batch_size : 256
         num_workers : 3
         pin_memory : true
-        model_name : SupViTSurv
+        model_name : ViTMAEtiny_gen
         model_params : 
                 lr : 0.0001
                 nbins : 4
+                mask_ratio : 0
                 alpha : 0.25
+                genomics : true 
                 aggregation_func : Mean_Aggregation
                 ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
                 p_dropout_head : 0

@@ -10,11 +10,12 @@ import random
 
 
 class TileModule(pl.LightningDataModule):
-    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size,num_workers,pin_memory,histonly=False,add_i1k=False,multitile=False,**kwargs):
+    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size,num_workers,pin_memory,histonly=False,add_i1k=False,multitile=False,n_neighbours=None,tile_df_path_multi=None,**kwargs):
         super().__init__()
         self.multitile = multitile
         if multitile:
-            self.n = n 
+            self.n = n_neighbours 
+            self.tile_df_path_multi = tile_df_path_multi
             
         self.df_path_train = df_path_train
         self.df_path_test = df_path_test
@@ -45,15 +46,14 @@ class TileModule(pl.LightningDataModule):
             self.val_set = Tile_only_joined_Dataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval,add_i1k=False)
             
         else:
+            self.test_set = TileDataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
+            self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
             if not self.multitile:
                 self.train_set = TileDataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train)
-                self.test_set = TileDataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
-                self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
             else:
-                self.train_set = MultiTileDataset(n = self.n,df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train)
-                self.test_set = MultiTileDataset(n = self.n,df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
-                self.val_set = MultiTileDataset(n = self.n,df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
-
+                
+                self.train_set = MultiTileDataset(n = self.n,df_path=self.df_path_train,tile_df_path=self.tile_df_path_multi,trainmode = "train",transform=self.transform_train)
+                
                  
         
     def train_dataloader(self):
@@ -200,7 +200,7 @@ class MultiTileDataset(Dataset):
             ext (str): file extension of tiles(eg jpg or png)
             trainmode (Bool): To generate train set or test set 
         """
-        super(TileDataset,self).__init__()
+        super(MultiTileDataset,self).__init__()
         #Genomic Tensor and Meta Dataframe
         df = pd.read_csv(df_path) 
         
@@ -219,7 +219,7 @@ class MultiTileDataset(Dataset):
         df_tiles.insert(2,"slideid_idx",df_tiles["slide_id"].map(diction))
         df_tiles = df_tiles.dropna()
         df_tiles.slideid_idx = df_tiles.slideid_idx.astype(int)
-        self.df_tiles = df_tiles# idx>=4 for neighbouring
+        self.df_tiles = df_tiles# idx>=5 for neighbouring
         
         self.n = n 
         self.transforms = transform
@@ -227,10 +227,10 @@ class MultiTileDataset(Dataset):
         return len(self.df_tiles)
     def __getitem__(self,idx):
         
-        tile_path,slide_idx = self.df_tiles.iat[idx,0],self.df_tiles.iat[idx,2]
+        tile_path,slide_idx = self.df_tiles.iat[idx,1],self.df_tiles.iat[idx,2]
         tile = Image.open(tile_path)
         tile = self.transforms(tile)
-        nn_paths = random.shuffle(self.df_tiles.iloc[idx,4:])
+        nn_paths = self.df_tiles.iloc[idx,5:].sample(frac=1)
         nn_tiles = [self.transforms(Image.open(tp)) for tp in nn_paths[:self.n]]
         
         
