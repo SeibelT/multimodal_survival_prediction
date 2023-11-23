@@ -89,7 +89,7 @@ def risk_func(out):
 
 
 def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac_val=None):
-    #clusters data into k folds stratified by patients,
+    #splits data into k folds stratified by patients,
     #bins survivaltime and , normalizes/transforms gen features into tensor  
     #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
     #fracs (eg:0.8)

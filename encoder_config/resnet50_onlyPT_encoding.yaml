@@ -1,0 +1,22 @@
+mode : train
+wandb_settings :
+        monitoring : true
+        entity : tobias-seibel
+        project : Feature_Encoder_UCEC
+        name : resnet50_onlyPT
+encode_settings:
+        save_path : /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-features/resnet50_features
+        new_ds_name : pt_files
+        mycheckpnt : null
+        encode_gen : false
+        batch_size : 512
+        num_workers : 3
+        pin_memory : true
+        model_name : Resnet_encoder
+        model_params : 
+                lr : 0.01
+        df_tile_slide_path : /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/df-TCGA-UCEC-TIILES-NORM.csv
+        df_data_paths : [/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_trainsplit.csv,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_testsplit.csv,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_valsplit.csv]
+        cntd : true
+
+

@@ -10,7 +10,6 @@ encode_settings:
         mycheckpnt : null
         encode_gen : false
         batch_size : 128
-        ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
         num_workers : 3
         pin_memory : true
         model_name : VitTiny
@@ -18,6 +17,7 @@ encode_settings:
                 lr : 0.01
                 nbins : 4
                 alpha : 0.1
+                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
         df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
         df_data_paths : [/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv]
         cntd : true

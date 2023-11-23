@@ -1,7 +1,6 @@
 import torch
 from torch import nn
-from torchvision.models import resnet18
-
+from torchvision.models import resnet18,resnet50,ResNet50_Weights
 import pytorch_lightning as pl
 from utils.Encoder_Utils import c_index,Survival_Loss
 from torchmetrics import Accuracy
@@ -90,7 +89,7 @@ def Concat_Mean_Aggregation(latent_x,latent_y):
     
 
 class SupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,alpha,aggregation_func,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
+    def __init__(self,lr,nbins,alpha,aggregation_func,d_gen=20971 ,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -111,7 +110,7 @@ class SupViTSurv(pl.LightningModule):
         
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         self.aggregation = Mean_Aggregation if aggregation_func=="Mean_Aggregation" else Concat_Mean_Aggregation if aggregation_func=="Concat_Mean_Aggregation" else None
-        self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
+        self.y_encoder = SNN(d=d_gen,d_out = 192,activation="SELU")
         #prediction
         self.encode_gen = encode_gen
         
@@ -339,7 +338,7 @@ class VitTiny_freeze(pl.LightningModule):
 
 
 class SupViTSurvNoMAE(pl.LightningModule):
-    def __init__(self,lr,aggregation_func,genomics,nbins,alpha,mask_ratio,encode_gen,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
+    def __init__(self,lr,aggregation_func,genomics,nbins,alpha,mask_ratio,encode_gen,d_gen=20971 ,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
         super().__init__()
         self.lr = lr
         self.mask_ratio = mask_ratio
@@ -361,7 +360,7 @@ class SupViTSurvNoMAE(pl.LightningModule):
         if genomics:
             g_enc_dim = 192
             self.y_encoder = self.encoded_y
-            self.snn = SNN(d=20971,d_out = 192,activation="SELU")
+            self.snn = SNN(d=d_gen,d_out = 192,activation="SELU")
             self.split_func = self.split_mm
         else:
             self.y_encoder = self.empty_y
@@ -501,7 +500,7 @@ class Resnet18Surv(pl.LightningModule):
 
 
 class MultiSupViTSurv(pl.LightningModule):
-    def __init__(self,lr,nbins,n_neighbours,alpha,aggregation_func,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
+    def __init__(self,lr,nbins,n_neighbours,alpha,aggregation_func,d_gen=20971 ,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -522,7 +521,7 @@ class MultiSupViTSurv(pl.LightningModule):
         
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         self.aggregation = Mean_Aggregation if aggregation_func=="Mean_Aggregation" else Concat_Mean_Aggregation if aggregation_func=="Concat_Mean_Aggregation" else None
-        self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
+        self.y_encoder = SNN(d=d_gen,d_out = 192,activation="SELU")
         #prediction
         self.encode_gen = encode_gen
         self.lin_encs =  nn.ModuleList([copy.deepcopy(self.model.patch_embed) for i in range(n_neighbours)]+[self.model.patch_embed])
@@ -660,7 +659,7 @@ class MultiSupViTSurv(pl.LightningModule):
 
 class SupViTSurv2(pl.LightningModule):
     """experimental:loss multiplied"""
-    def __init__(self,lr,nbins,alpha,aggregation_func,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
+    def __init__(self,lr,nbins,alpha,aggregation_func,d_gen=20971 ,ckpt_path=None,ffcv=False,encode_gen=True,p_dropout_head=0):
         super().__init__()
         self.lr = lr
         self.nbins = nbins
@@ -681,7 +680,7 @@ class SupViTSurv2(pl.LightningModule):
         
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         self.aggregation = Mean_Aggregation if aggregation_func=="Mean_Aggregation" else Concat_Mean_Aggregation if aggregation_func=="Concat_Mean_Aggregation" else None
-        self.y_encoder = SNN(d=20971,d_out = 192,activation="SELU")
+        self.y_encoder = SNN(d=d_gen,d_out = 192,activation="SELU")
         #prediction
         self.encode_gen = encode_gen
         
@@ -756,7 +755,7 @@ class SupViTSurv2(pl.LightningModule):
 
 
 class ViTMAEtiny_gen(pl.LightningModule):
-    def __init__(self,lr,aggregation_func,genomics,nbins,alpha,mask_ratio,encode_gen,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
+    def __init__(self,lr,aggregation_func,genomics,nbins,alpha,mask_ratio,encode_gen,d_gen=20971 ,ckpt_path=None,ffcv=False,p_dropout_head=0,**kwargs):
         super().__init__()
         self.lr = lr
         self.mask_ratio = mask_ratio
@@ -777,7 +776,7 @@ class ViTMAEtiny_gen(pl.LightningModule):
         if genomics:
             g_enc_dim = 192
             self.y_encoder = self.encoded_y
-            self.snn = SNN(d=20971,d_out = 192,activation="SELU")
+            self.snn = SNN(d=d_gen,d_out = 192,activation="SELU")
             self.split_func = self.split_mm
         else:
             self.y_encoder = self.empty_y
@@ -888,7 +887,7 @@ class SupViTSurv_nogen(pl.LightningModule):
         
         
     def forward(self, x,y):
-        y = torch.rand((x.size(0),0,192))
+        y = torch.rand((x.size(0),0,192)).to(x.device)
         latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y, self.ids_shuffle)
         conc_latent = torch.mean(latent,dim=1)
 
@@ -946,3 +945,44 @@ class SupViTSurv_nogen(pl.LightningModule):
             )
         
         return {"optimizer": optimizer}
+
+
+
+class Resnet_encoder(pl.LightningModule):
+    def __init__(self,**kwargs):
+        super().__init__()
+        self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
+        self.model.fc = torch.nn.Identity()
+        
+    def forward(self, x):
+        return self.model(x)
+
+    def training_step(self, batch, batch_idx):
+        hist_tile,gen, censorship, label,label_cont = batch
+        logits =self(hist_tile)
+        return logits
+    
+    def evaluate(self, batch, stage=None):
+        hist_tile,gen, censorship, label,label_cont = batch
+        ...
+        
+    def predict_step(self, batch, batch_idx,mask_ratio=0):
+        x,y= batch
+        return (self(x))
+            
+    
+    
+    def validation_step(self, batch, batch_idx):
+        self.evaluate(batch, "val")
+
+    def test_step(self, batch, batch_idx):
+        self.evaluate(batch, "test")
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            )
+        
+        return {"optimizer": optimizer}
+

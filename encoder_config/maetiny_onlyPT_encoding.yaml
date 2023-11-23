@@ -1,0 +1,25 @@
+mode : train
+wandb_settings :
+        monitoring : true
+        entity : tobias-seibel
+        project : Feature_Encoder_UCEC
+        name : vitmaetiny_pt
+encode_settings:
+        save_path : /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-features/vitmaetiny_features
+        new_ds_name : pt_files
+        mycheckpnt : null
+        encode_gen : false
+        batch_size : 512
+        num_workers : 3
+        pin_memory : true
+        model_name : VitTiny
+        model_params : 
+                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+                lr : 0.01
+                nbins : 4
+                alpha : 0.1
+        df_tile_slide_path : /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/df-TCGA-UCEC-TIILES-NORM.csv
+        df_data_paths : [/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_trainsplit.csv,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_testsplit.csv,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/tile_encoder_df/tcga_ucec__4bins_valsplit.csv]
+        cntd : true
+
+
