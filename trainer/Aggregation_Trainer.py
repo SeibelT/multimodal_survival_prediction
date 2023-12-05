@@ -64,24 +64,32 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         
         c_index_train = c_index(risk_all,c_all,l_con_all)
 
-        c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"unimodal")
-        c_index_val_all[epoch] = c_index_val
-        
-        
-        wandbdict = {"epoch": epoch+1,
+        if valloader is not None: 
+            c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"unimodal")
+            c_index_val_all[epoch] = c_index_val
+            
+            wandbdict = {"epoch": epoch+1,
                         "train/runningloss": running_loss_train/len(trainloader),
                         "train/c_index":c_index_train,
                         'valid/runningloss': running_loss_val/len(valloader),
                         "valid/c_index":c_index_val,
                     }
+        else:
+            wandbdict = {"epoch": epoch+1,
+                        "train/runningloss": running_loss_train/len(trainloader),
+                        "train/c_index":c_index_train,
+                        }
+
         if run is not None:
             run.log(wandbdict)
             
     model_weights = model.state_dict()
     
     if run is not None:
-        run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+        
+        
         if testloader is None: 
+            run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
             KM_wandb(run,km_values_val[0],km_values_val[1],event_cont=km_values_val[2],nbins = 30)
             return c_index_val_all,km_values_val[0],km_values_val[1],km_values_val[2]
         else:
@@ -92,8 +100,8 @@ def Uni_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                             "test/c_index":c_index_test,
                         }
             run.log(wandbdict_test)
-        
-            return c_index_val_all
+            return None,km_values_test[0],km_values_test[1],km_values_test[2]
+            
     else:
         if testloader is None:
             c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"unimodal")# in eval mode 
@@ -166,28 +174,35 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
         l_con_all = torch.cat(l_con_all,dim=0)
         c_index_train = c_index(risk_all,c_all,l_con_all)
 
-        c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"multimodal")
-        c_index_val_all[epoch] = c_index_val
-        
-        
-        wandbdict = {"epoch": epoch+1,
+        if valloader is not None: 
+            c_index_val,running_loss_val,km_values_val = eval_func(model,valloader,criterion,device,bins,"multimodal")
+            c_index_val_all[epoch] = c_index_val
+            
+            wandbdict = {"epoch": epoch+1,
                         "train/runningloss": running_loss_train/len(trainloader),
                         "train/c_index":c_index_train,
                         'valid/runningloss': running_loss_val/len(valloader),
                         "valid/c_index":c_index_val,
-                    }
-        run.log(wandbdict)
+                        }
+        else:
+            wandbdict = {"epoch": epoch+1,
+                        "train/runningloss": running_loss_train/len(trainloader),
+                        "train/c_index":c_index_train,
+                        }
+        if run is not None:
+            run.log(wandbdict)
 
-    run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+    
 
     model_weights = model.state_dict()
     
     if run is not None:
-        run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
+            
         if testloader is None: 
+            run.log(dict(c_index_max_val=c_index_val_all.max(),c_index_last_val=c_index_val_all[-1],c_index_epoch_val=np.argmax(c_index_val_all)))
             KM_wandb(run,km_values_val[0],km_values_val[1],event_cont=km_values_val[2],nbins = 30)
             return c_index_val_all,km_values_val[0],km_values_val[1],km_values_val[2]
-        
+            
         else:
             c_index_test,running_loss_test,km_values_test = eval_func(model,testloader,criterion,device,bins,"multimodal")
             KM_wandb(run,km_values_test[0],km_values_test[1],event_cont=km_values_test[2],nbins = 30)
@@ -196,7 +211,8 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                             "test/c_index":c_index_test,
                         }
             run.log(wandbdict_test)
-            return c_index_val_all
+            return None,km_values_test[0],km_values_test[1],km_values_test[2]
+            
     else:
         if testloader is None:
             c_index_train,running_loss_train,km_values_train = eval_func(model,trainloader,criterion,device,bins,"multimodal")# in eval mode 

@@ -10,7 +10,7 @@ import random
 
 
 class TileModule(pl.LightningDataModule):
-    def __init__(self,df_path_train,df_path_test,df_path_val,tile_df_path,batch_size,num_workers,pin_memory,histonly=False,add_i1k=False,multitile=False,n_neighbours=None,tile_df_path_multi=None,**kwargs):
+    def __init__(self,df_path_train,df_path_test,tile_df_path,batch_size,num_workers,pin_memory,df_path_val=None,histonly=False,add_i1k=False,multitile=False,n_neighbours=None,tile_df_path_multi=None,**kwargs):
         super().__init__()
         self.multitile = multitile
         if multitile:
@@ -26,6 +26,10 @@ class TileModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.histonly = histonly
         self.add_i1k = add_i1k
+         
+        self.do_validation = df_path_val is not None
+        
+            
         self.transform_train =  transforms.Compose([transforms.CenterCrop(224),
                                                     transforms.ToTensor(),
                                                     transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
@@ -43,11 +47,13 @@ class TileModule(pl.LightningDataModule):
         if self.histonly:
             self.train_set = Tile_only_joined_Dataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train,add_i1k=self.add_i1k)
             self.test_set = Tile_only_joined_Dataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval,add_i1k=False)
-            self.val_set = Tile_only_joined_Dataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval,add_i1k=False)
+            if self.do_validation:
+                self.val_set = Tile_only_joined_Dataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval,add_i1k=False)
             
         else:
             self.test_set = TileDataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
-            self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
+            if self.do_validation:
+                self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
             if not self.multitile:
                 self.train_set = TileDataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train)
             else:
@@ -60,8 +66,11 @@ class TileModule(pl.LightningDataModule):
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True,num_workers=self.num_workers,pin_memory=self.pin_memory)
 
     def val_dataloader(self):
-        return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=self.pin_memory)
-
+        if self.do_validation: 
+            return DataLoader(self.val_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=self.pin_memory)
+        else:
+            return iter([])
+        
     def test_dataloader(self):
         return DataLoader(self.test_set, batch_size=self.batch_size,num_workers=self.num_workers,pin_memory=self.pin_memory)
     
