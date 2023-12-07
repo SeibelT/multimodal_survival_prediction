@@ -526,7 +526,6 @@ class MultiSupViTSurv(pl.LightningModule):
         self.encode_gen = encode_gen
         self.lin_encs =  nn.ModuleList([copy.deepcopy(self.model.patch_embed) for i in range(n_neighbours)]+[self.model.patch_embed])
         
-        
     def forward(self, x,y):
         y = self.y_encoder(y)
         latent, mask, ids_restore, ids_shuffle = self.model.forward_encoder(x, self.mask_ratio,y.unsqueeze(1), self.ids_shuffle)
@@ -537,74 +536,71 @@ class MultiSupViTSurv(pl.LightningModule):
         return pred,mask,surv_logits
 
     def training_step(self, batch, batch_idx):
-        hist_tile,nn_tiles,gen, censorship, label,label_cont = batch
+        nn_tiles,gen, censorship, label,label_cont = batch
         ####
-        y = self.y_encoder(gen)
-        nn_tiles.append(hist_tile)
+        self.optimizers().zero_grad()
+        y = self.y_encoder(gen).unsqueeze(1)
+        B = gen.size(0)
+        #linear embedding, positional encoding, masking
+        x_lin = [lin_encoding(x)+ self.model.pos_embed[:, 1:, :]  for lin_encoding,x in zip(self.lin_encs,nn_tiles)]
+        image_function_outputs = [self.model.random_masking(x, self.mask_ratio, self.ids_shuffle) for x in x_lin]
+        x_enc, masks, ids_restore_list,_ = zip(*image_function_outputs)
         
-        x_enc = []
-        ids_restore_list = []
-        masks = []
-        for lin_encoding,x in zip(self.lin_encs,nn_tiles):
-            # embed patches
-            x =  lin_encoding(x) #self.model.patch_embed(x)
-            # add pos embed w/o cls token
-            x = x + self.model.pos_embed[:, 1:, :]
-            # masking: length -> length * mask_ratio
-            x, mask, ids_restore, ids_shuffle = self.model.random_masking(x, self.mask_ratio, self.ids_shuffle)
-            x_enc.append(x)
-            ids_restore_list.append(ids_restore)
-            masks.append(mask)
-        # append cls token
+        
+        # concat to single sequence with cls token and gen encoding 
         cls_token = self.model.cls_token + self.model.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        
+        cls_tokens = cls_token.expand(B, -1, -1)
         x_enc = torch.cat(x_enc,dim=1)
-        x_enc = torch.cat((cls_tokens, x_enc,y.unsqueeze(1)), dim=1)
+        x_enc = torch.cat((cls_tokens, x_enc,y), dim=1)
 
+        #encode sequence 
         for blk in self.model.blocks:
             x_enc = blk(x_enc)
         x_enc = self.model.norm(x_enc)
 
+        #separate cls_token,y_encoding_images
         cls_token_enc,latent_x,latent_y = torch.split(x_enc,split_size_or_sections=[1,x_enc.size(1)-2,1],dim=1)
-        #conc_latent = self.aggregation(latent_x,latent_y)
-        #surv_logits = self.classification_head(conc_latent)
-        #loss_Surv = self.criterion(surv_logits,censorship,label)
+        
+        #surv loss 
+        conc_latent = torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
+        surv_logits = self.classification_head(conc_latent)
+        loss_Surv = self.criterion(surv_logits,censorship,label)
+        self.log("train_Survloss",loss_Surv)
+        
         #decode
         latent_x = self.model.decoder_embed(latent_x)
         cls_token_dec = self.model.decoder_embed(cls_token_enc)
-        #cls_token_enc,latent_x_ = torch.split(latent_x,split_size_or_sections=[1,latent_x.size(1)-1],dim=1)
+        #split sequence into n sequences(for each image) 
         latent_x_sep = torch.split(latent_x,split_size_or_sections=len(nn_tiles),dim=1)
         
-        surv_logits = self.classification_head(cls_token_enc)
-        loss_Surv = self.criterion(surv_logits,censorship,label)
         
-        
-        losses = []
-        for x_out,ids_restore,tile,mask in zip(latent_x_sep,ids_restore_list,nn_tiles,masks):
-            mask_tokens = self.model.mask_token.repeat(x_out.shape[0], ids_restore.shape[1] - x_out.shape[1], 1)
-            x_out_ = torch.cat([x_out, mask_tokens], dim=1) 
-            x_unshfld = torch.gather(x_out_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x_out_.shape[2]))  # unshuffle
-            x_dec = torch.cat([cls_token_dec, x_unshfld], dim=1)  # append cls token
+        loss = loss_Surv
+        for i,(x_out,ids_restore,tile,mask) in enumerate(zip(latent_x_sep,ids_restore_list,nn_tiles,masks)):
+            mask_tokens = self.model.mask_token.repeat(x_out.shape[0], ids_restore.shape[1] - x_out.shape[1], 1) # masked w masktoken 
+            x_out = torch.cat([x_out, mask_tokens], dim=1) # add to sequence 
+            x_out = torch.gather(x_out, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x_out.shape[2]))  # unshuffle
+            x_out = torch.cat([cls_token_dec, x_out], dim=1)  # append cls token
             # add pos embed
-            x_dec = x_dec + self.model.decoder_pos_embed
-            # apply Transformer blocks
+            x_out = x_out + self.model.decoder_pos_embed
+            # apply Transformer blocks for decoding
             for blk in self.model.decoder_blocks:
-                x_dec = blk(x_dec)
-            x_dec = self.model.decoder_norm(x_dec)
+                x_out = blk(x_out)
+            x_out = self.model.decoder_norm(x_out)
             # predictor projection
-            x_dec = self.model.decoder_pred(x_dec)
-            # remove cls token
-            x_dec = x_dec[:, 1:, :]
-            loss_MAE = self.model.forward_loss(tile, x_dec, mask)
-            losses.append(loss_MAE)
+            x_out = self.model.decoder_pred(x_out)
+            x_out = x_out[:, 1:, :]# remove cls token
+            
+            loss_MAE = self.model.forward_loss(tile, x_out, mask)
+            self.log(f"train_MAEloss{i}", loss_MAE)
+            loss = loss+loss_MAE
+            
         
-        ####
-        for i,loss in enumerate(losses):
-           self.log(f"train_MAEloss{i}", loss)
-        self.log("train_Survloss",loss_Surv)
-        return sum(losses)+loss_Surv
+        
+        return loss
     
+    
+        
+        
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch
         pred,mask,surv_logits = self(hist_tile,gen)

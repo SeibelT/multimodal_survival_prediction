@@ -27,13 +27,16 @@ def train(world_size, train_settings, monitoring):
         data_module = ffcvmodule(**train_settings["dataset_params"],is_dist=True if world_size>1 else False)
     else:
         data_module = globals()[train_settings["datamodule"]](**train_settings["dataset_params"])
-        
+    print("Datamodule :",data_module.__class__.__name__)
+    
+
     #Model
     model =  globals()[train_settings["model_name"]](ffcv = train_settings["ffcv"],**train_settings["model_params"])
     if checkpoint_path is not None:
         print(f"Load model from Checkpointpath: \n {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path)["state_dict"])
     
+    print("Modelname :",model._get_name())
     #wandb monitoring + watching weights
     if monitoring:
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
@@ -68,7 +71,8 @@ def train(world_size, train_settings, monitoring):
         logger=wandb_logger if monitoring else False,
         max_epochs=train_settings["max_epochs"],
         callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
+                         #ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
+                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1)],
                            )
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
@@ -114,7 +118,7 @@ def encode(inference_settings):
         model.load_state_dict(torch.load(mycheckpnt)["state_dict"])
 
 
-    transform = transform = transforms.Compose([transforms.ToTensor(),
+    transform  = transforms.Compose([transforms.ToTensor(),
                                             transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
                                             ]
                                         )

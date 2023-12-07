@@ -1,6 +1,6 @@
 import os 
 import torch
-import pandas as pd
+import pandas as pd 
 from PIL import Image
 from torchvision import transforms
 from utils.Aggregation_Utils import *
@@ -246,5 +246,5 @@ class MultiTileDataset(Dataset):
         label = torch.tensor(self.df_meta.iat[slide_idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
-        return (tile,nn_tiles, self.genomics_tensor[slide_idx], censorship, label,label_cont)
+        return ([tile]+nn_tiles, self.genomics_tensor[slide_idx], censorship, label,label_cont)
         
