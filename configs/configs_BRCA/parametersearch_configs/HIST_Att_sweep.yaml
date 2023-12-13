@@ -1,0 +1,34 @@
+project: Attention_paramsweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_max
+parameters:
+  epochs:
+    value: 20
+  alpha:
+    values: [0.5,0.25]
+  l1_lambda:
+    value: 1e-7
+  d_gen_out:
+    value: 32
+  learningrate:
+    values: [1e-5,1e-6,1e-7]
+  activation:
+    values: [SELU,GELU]
+  bins:
+    values: [4,32]
+  modality:
+    value: hist_attention
+  batchsize:
+    value: 1
+  datapath:
+    value: /work4/seibel/data
+  dropout:
+    values: [0.1,0.5,0.7]
+  cohort:
+   value : brca
+command:
+  - python3
+  - kfold_sweep.py

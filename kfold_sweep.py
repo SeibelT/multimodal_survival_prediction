@@ -76,7 +76,8 @@ def train(sweep_q, worker_q):
     #setup file paths and read CSV #TODO more general solution needed if time 
     storepath = os.path.join(datapath,f"/results/{modality}sweep") # not used! 
     d_hidden=config["d_hidden"]
-    csv_path = os.path.join(csv_path,"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
+    cohort = config["cohort"] 
+    csv_path = os.path.join(csv_path,f"tcga_{cohort}_trainable"+str(bins)+".csv") # CSV file 
     
     
     

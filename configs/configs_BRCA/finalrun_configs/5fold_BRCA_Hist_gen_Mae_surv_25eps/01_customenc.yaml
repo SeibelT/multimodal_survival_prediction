@@ -1,0 +1,52 @@
+project: final_result_5fold
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: test/c_index
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    values: [0.44813,0.002275]
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 2e-4
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [hist,hist_attention]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.5
+  storepath:
+    value: /work4/seibel/data/results
+  do_test:
+    value: true
+  do_val:
+    value: false
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/welldistributed5folds/01
+  dim_hist_and_feature_path:
+    value: [192,"/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/5fold-hist_gen_mae_surv25/01/pt_files"]
+  repeating:
+    value: 1
+  kfold:
+    values: [null]
+
+  
+command:
+  - python3
+  - aggregation2.py

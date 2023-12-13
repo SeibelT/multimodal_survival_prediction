@@ -1,0 +1,34 @@
+project: SNN_paramsweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_max
+parameters:
+  epochs:
+    value: 20
+  alpha:
+    values: [0.5,0.25]
+  l1_lambda:
+    value: 1e-7
+  d_gen_out:
+    value: 32
+  learningrate:
+    value: 1e-5
+  activation:
+    values: [SELU,GELU]
+  bins:
+    values: [4,32]
+  modality:
+    value: gen
+  batchsize:
+    values: [1,128]
+  datapath:
+    value: /work4/seibel/data
+  dropout:
+    value: 0.1
+  cohort:
+   value : brca
+command:
+  - python3
+  - kfold_sweep.py

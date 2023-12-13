@@ -42,9 +42,10 @@ def aggregation():
     do_test = config["do_test"] if "do_test" in config else True
     do_val = config["do_val"] if "do_val" in config else True
     kfold = config["kfold"] 
+    cohort = config["cohort"]
     num_fold = 5
     if kfold is not None:
-        csv_path_kfold = os.path.join(config["csv_path"],"tcga_brca_trainable"+str(bins)+".csv") # CSV file 
+        csv_path_kfold = os.path.join(config["csv_path"],f"tcga_{cohort}_trainable"+str(bins)+".csv") # CSV file 
         df_kfold = pd.read_csv(csv_path_kfold)
         df_kfold = dropmissing(df_kfold,"kfold",feature_path)
         df_kfold["kfold"] = df_kfold["kfold"].apply(lambda x : (x+kfold)%num_fold) 
@@ -55,16 +56,16 @@ def aggregation():
         #assert not do_test, "kfold not applicable with test"
     
     else:
-        csv_path_train = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_trainsplit.csv") 
+        csv_path_train = os.path.join(config["csv_path"],f"tcga_{cohort}__{bins}bins_trainsplit.csv") 
         df_train = pd.read_csv(csv_path_train)
         df_train = dropmissing(df_train,"train",feature_path)
         if do_val:
-            csv_path_val = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_valsplit.csv") 
+            csv_path_val = os.path.join(config["csv_path"],f"tcga_{cohort}__{bins}bins_valsplit.csv") 
             df_val = pd.read_csv(csv_path_val)
             df_val = dropmissing(df_val,"val",feature_path)
         
         if do_test:
-            csv_path_test = os.path.join(config["csv_path"],f"tcga_brca__{bins}bins_testsplit.csv") 
+            csv_path_test = os.path.join(config["csv_path"],f"tcga_{cohort}__{bins}bins_testsplit.csv") 
             df_test = pd.read_csv(csv_path_test)
             df_test = dropmissing(df_test,"test",feature_path)
     
@@ -90,18 +91,18 @@ def aggregation():
         model = PrePorpoise(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden).to(device)
         
     elif modality=="PrePorpoise_meanagg_attmil":
-        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
         if do_val:
-            val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+            val_ds = HistGen_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
         if do_test:
             test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()
         model = PrePorpoise_meanagg(d_hist=dim_hist,d_gen=d_gen,d_transformer=512,dropout=dropout,activation=activation,bins=bins,d_hidden=d_hidden,attmil=True).to(device)
     
     elif modality=="PrePorpoise_meanagg":
-        train_ds = HistGen_Dataset(df_train,data_path = feature_path,mode="train")
+        train_ds = HistGen_Dataset(df_train,data_path = feature_path,train=True,mode="train" if kfold is None else "kfold")
         if do_val:
-            val_ds = HistGen_Dataset(df_val,data_path = feature_path,mode="val")
+            val_ds = HistGen_Dataset(df_val,data_path = feature_path,train=False,mode="val" if kfold is None else "kfold")
         if do_test:
             test_ds = HistGen_Dataset(df_test,data_path = feature_path,mode="test")
         d_gen = train_ds.gen_depth()

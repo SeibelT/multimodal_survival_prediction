@@ -1,0 +1,49 @@
+project: final_result
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: valid/c_index
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    value: 0.44813
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 1e-6
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [hist_attention,hist]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.3
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/tile_encoder_dataframes
+  dim_hist_and_feature_path:
+    value: [192,"/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/maetiny_ft25eps_brca_histo_gen_dropout0p/pt_files"]
+  repeating:
+    values: [1,2,3,4,5,6,7,8,9,10]
+  kfold:
+    values: [null]
+  cohort:
+   value : brca
+  
+command:
+  - python3
+  - aggregation2.py

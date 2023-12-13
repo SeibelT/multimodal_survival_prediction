@@ -8,8 +8,9 @@ from models.mae_models.models_mae_modified import mae_vit_tiny_patch16
 import torch
 import h5py
 import copy
-
-
+import os
+import psutil
+import gc
 class Classifier_Head(nn.Module):
     """Survival Head"""
     def __init__(self,outsize,p_dropout_head,d_hidden=256,t_bins=4,):
@@ -519,6 +520,7 @@ class MultiSupViTSurv(pl.LightningModule):
         f_class = 1 if aggregation_func=="Mean_Aggregation" else 2 if aggregation_func=="Concat_Mean_Aggregation" else None
         self.classification_head =  Classifier_Head(f_class*192,d_hidden=128*f_class,t_bins=nbins,p_dropout_head=p_dropout_head)
         
+        
         self.criterion = Survival_Loss(alpha,ffcv=ffcv)
         self.aggregation = Mean_Aggregation if aggregation_func=="Mean_Aggregation" else Concat_Mean_Aggregation if aggregation_func=="Concat_Mean_Aggregation" else None
         self.y_encoder = SNN(d=d_gen,d_out = 192,activation="SELU")
@@ -535,16 +537,25 @@ class MultiSupViTSurv(pl.LightningModule):
         surv_logits = self.classification_head(conc_latent)
         return pred,mask,surv_logits
 
+    
     def training_step(self, batch, batch_idx):
         nn_tiles,gen, censorship, label,label_cont = batch
+        
+        
         ####
-        self.optimizers().zero_grad()
+
         y = self.y_encoder(gen).unsqueeze(1)
         B = gen.size(0)
+        
+        #debug_loss =  self.criterion(self.classification_head(y),censorship,label)
+        #self.log("train_Survloss",debug_loss.detach())
+        #return debug_loss
+    
         #linear embedding, positional encoding, masking
         x_lin = [lin_encoding(x)+ self.model.pos_embed[:, 1:, :]  for lin_encoding,x in zip(self.lin_encs,nn_tiles)]
         image_function_outputs = [self.model.random_masking(x, self.mask_ratio, self.ids_shuffle) for x in x_lin]
         x_enc, masks, ids_restore_list,_ = zip(*image_function_outputs)
+        
         
         
         # concat to single sequence with cls token and gen encoding 
@@ -565,7 +576,8 @@ class MultiSupViTSurv(pl.LightningModule):
         conc_latent = torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
         surv_logits = self.classification_head(conc_latent)
         loss_Surv = self.criterion(surv_logits,censorship,label)
-        self.log("train_Survloss",loss_Surv)
+        self.log("train_Survloss",loss_Surv.detach())
+        
         
         #decode
         latent_x = self.model.decoder_embed(latent_x)
@@ -591,11 +603,9 @@ class MultiSupViTSurv(pl.LightningModule):
             x_out = x_out[:, 1:, :]# remove cls token
             
             loss_MAE = self.model.forward_loss(tile, x_out, mask)
-            self.log(f"train_MAEloss{i}", loss_MAE)
+            self.log(f"train_MAEloss{i}", loss_MAE.detach())
             loss = loss+loss_MAE
             
-        
-        
         return loss
     
     

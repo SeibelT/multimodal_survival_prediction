@@ -37,6 +37,12 @@ def train(world_size, train_settings, monitoring):
         model.load_state_dict(torch.load(checkpoint_path)["state_dict"])
     
     print("Modelname :",model._get_name())
+    
+    callbacks = [#ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
+                ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1),]
+    callbacks.append(StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",
+                                               annealing_epochs=train_settings["annealing_epochs"]))  if train_settings["stochastic_weightaveraging"] else print("No StochasticWeightAveraging")
+    
     #wandb monitoring + watching weights
     if monitoring:
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
@@ -56,9 +62,7 @@ def train(world_size, train_settings, monitoring):
             strategy = "ddp",#"ddp_find_unused_parameters_true"
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
-            callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         #ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1)],
+            callbacks = callbacks,
                             )
     else:
         trainer = pl.Trainer(
@@ -70,9 +74,7 @@ def train(world_size, train_settings, monitoring):
         profiler=train_settings["profiler"],
         logger=wandb_logger if monitoring else False,
         max_epochs=train_settings["max_epochs"],
-        callbacks = [StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",annealing_epochs=train_settings["annealing_epochs"]) if train_settings["stochastic_weightaveraging"] else None,
-                         #ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
-                         ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1)],
+        callbacks = callbacks,
                            )
     
     if train_settings["tune"]:  # run with one gpu only to find ideal values for bs and lr -> adapt to multigpu 
