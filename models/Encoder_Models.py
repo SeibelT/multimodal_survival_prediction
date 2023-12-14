@@ -527,6 +527,7 @@ class MultiSupViTSurv(pl.LightningModule):
         #prediction
         self.encode_gen = encode_gen
         self.lin_encs =  nn.ModuleList([copy.deepcopy(self.model.patch_embed) for i in range(n_neighbours)]+[self.model.patch_embed])
+        assert n_neighbours==3
         
     def forward(self, x,y):
         y = self.y_encoder(y)
@@ -538,11 +539,138 @@ class MultiSupViTSurv(pl.LightningModule):
         return pred,mask,surv_logits
 
     
+    def newtrainngstep(self, batch, batch_idx):
+        tile0,tile1,tile2,tile3,gen, censorship, label,label_cont = batch
+        
+        
+        ####
+
+        y = self.y_encoder(gen).unsqueeze(1)
+        B = gen.size(0)
+        
+        #linear embedding, positional encoding, masking
+        tile0_lin = self.lin_encs[0](tile0)+ self.model.pos_embed[:, 1:, :]
+        tile1_lin = self.lin_encs[1](tile1)+ self.model.pos_embed[:, 1:, :]
+        tile2_lin = self.lin_encs[2](tile2)+ self.model.pos_embed[:, 1:, :]
+        tile3_lin = self.lin_encs[3](tile3)+ self.model.pos_embed[:, 1:, :]
+        
+        x_enc0, mask0, ids_restore0,_0 = self.model.random_masking(tile0_lin, self.mask_ratio, self.ids_shuffle)
+        x_enc1, mask1, ids_restore1,_1 = self.model.random_masking(tile1_lin, self.mask_ratio, self.ids_shuffle)
+        x_enc2, mask2, ids_restore2,_2 = self.model.random_masking(tile2_lin, self.mask_ratio, self.ids_shuffle)
+        x_enc3, mask3, ids_restore3,_3 = self.model.random_masking(tile3_lin, self.mask_ratio, self.ids_shuffle)
+        
+        
+        # concat to single sequence with cls token and gen encoding 
+        cls_token = self.model.cls_token + self.model.pos_embed[:, :1, :]
+        cls_tokens = cls_token.expand(B, -1, -1)
+        
+        x_enc = torch.cat((cls_tokens,x_enc0,x_enc1,x_enc2,x_enc3,y), dim=1)
+
+        #encode sequence 
+        for blk in self.model.blocks:
+            x_enc = blk(x_enc)
+        x_enc = self.model.norm(x_enc)
+
+        
+        #surv loss 
+        conc_latent = torch.mean(x_enc,dim=1)
+        surv_logits = self.classification_head(conc_latent)
+        loss_Surv = self.criterion(surv_logits,censorship,label)
+        self.log("train_Survloss",loss_Surv.detach())
+        
+        
+        
+        #decode
+        latent_x = self.model.decoder_embed(x_enc)
+        
+        #separate cls_token,y_encoding_images
+        cls_token_dec,latent_x,latent_y = torch.split(latent_x,split_size_or_sections=[1,x_enc.size(1)-2,1],dim=1)
+        #split sequence into n sequences(for each image) 
+        len_single_seq = int(latent_x.size(1)/4)
+        latent_x0,latent_x1,latent_x2,latent_x3 =  torch.split(latent_x,split_size_or_sections=len_single_seq,dim=1)
+        
+        
+        #DECODE
+        #0
+        mask_token0 = self.model.mask_token.repeat(latent_x0.shape[0], ids_restore0.shape[1] - latent_x0.shape[1], 1) # masked w masktoken 
+        latent_x0 = torch.cat([latent_x0, mask_token0], dim=1) # add to sequence 
+        latent_x0 = torch.gather(latent_x0, dim=1, index=ids_restore0.unsqueeze(-1).repeat(1, 1, latent_x0.shape[2]))  # unshuffle
+        latent_x0 = torch.cat([cls_token_dec, latent_x0], dim=1)  # append cls token
+        # add pos embed
+        latent_x0 = latent_x0 + self.model.decoder_pos_embed
+        # apply Transformer blocks for decoding
+        for blk in self.model.decoder_blocks:
+            latent_x0 = blk(latent_x0)
+        latent_x0 = self.model.decoder_norm(latent_x0)
+        # predictor projection
+        latent_x0 = self.model.decoder_pred(latent_x0)
+        latent_x0 = latent_x0[:, 1:, :]# remove cls token
+        
+        loss_MAE0 = self.model.forward_loss(tile0, latent_x0, mask0)
+        self.log(f"train_MAEloss{0}", loss_MAE0.detach())
+        
+        #1
+        mask_token1 = self.model.mask_token.repeat(latent_x1.shape[0], ids_restore1.shape[1] - latent_x1.shape[1], 1) # masked w masktoken 
+        latent_x1 = torch.cat([latent_x1, mask_token1], dim=1) # add to sequence 
+        latent_x1 = torch.gather(latent_x1, dim=1, index=ids_restore1.unsqueeze(-1).repeat(1, 1, latent_x1.shape[2]))  # unshuffle
+        latent_x1 = torch.cat([cls_token_dec, latent_x1], dim=1)  # append cls token
+        # add pos embed
+        latent_x1 = latent_x1 + self.model.decoder_pos_embed
+        # apply Transformer blocks for decoding
+        for blk in self.model.decoder_blocks:
+            latent_x1 = blk(latent_x1)
+        latent_x1 = self.model.decoder_norm(latent_x1)
+        # predictor projection
+        latent_x1 = self.model.decoder_pred(latent_x1)
+        latent_x1 = latent_x1[:, 1:, :]# remove cls token
+        
+        loss_MAE1 = self.model.forward_loss(tile1, latent_x1, mask1)
+        self.log(f"train_MAEloss{1}", loss_MAE1.detach())
+        
+        #2
+        mask_token2 = self.model.mask_token.repeat(latent_x2.shape[0], ids_restore2.shape[1] - latent_x2.shape[1], 1) # masked w masktoken 
+        latent_x2 = torch.cat([latent_x2, mask_token2], dim=1) # add to sequence 
+        latent_x2 = torch.gather(latent_x2, dim=1, index=ids_restore2.unsqueeze(-1).repeat(1, 1, latent_x2.shape[2]))  # unshuffle
+        latent_x2 = torch.cat([cls_token_dec, latent_x2], dim=1)  # append cls token
+        # add pos embed
+        latent_x2 = latent_x2 + self.model.decoder_pos_embed
+        # apply Transformer blocks for decoding
+        for blk in self.model.decoder_blocks:
+            latent_x2 = blk(latent_x2)
+        latent_x2 = self.model.decoder_norm(latent_x2)
+        # predictor projection
+        latent_x2 = self.model.decoder_pred(latent_x2)
+        latent_x2 = latent_x2[:, 1:, :]# remove cls token
+        
+        loss_MAE2 = self.model.forward_loss(tile2, latent_x2, mask2)
+        self.log(f"train_MAEloss{2}", loss_MAE2.detach())
+        
+        #3
+        mask_token3 = self.model.mask_token.repeat(latent_x3.shape[0], ids_restore3.shape[1] - latent_x3.shape[1], 1) # masked w masktoken 
+        latent_x3 = torch.cat([latent_x3, mask_token3], dim=1) # add to sequence 
+        latent_x3 = torch.gather(latent_x3, dim=1, index=ids_restore3.unsqueeze(-1).repeat(1, 1, latent_x3.shape[2]))  # unshuffle
+        latent_x3 = torch.cat([cls_token_dec, latent_x3], dim=1)  # append cls token
+        # add pos embed
+        latent_x3 = latent_x3 + self.model.decoder_pos_embed
+        # apply Transformer blocks for decoding
+        for blk in self.model.decoder_blocks:
+            latent_x3 = blk(latent_x3)
+        latent_x3 = self.model.decoder_norm(latent_x3)
+        # predictor projection
+        latent_x3 = self.model.decoder_pred(latent_x3)
+        latent_x3 = latent_x3[:, 1:, :]# remove cls token
+        
+        loss_MAE3 = self.model.forward_loss(tile3, latent_x3, mask3)
+        self.log(f"train_MAEloss{3}", loss_MAE3.detach())
+        
+            
+        return loss_Surv + loss_MAE0 + loss_MAE1 + loss_MAE2 + loss_MAE3
+    
     def training_step(self, batch, batch_idx):
         nn_tiles,gen, censorship, label,label_cont = batch
         
         
-        ####
+        ####tile0,tile1,tile2,tile3,gen, censorship, label,label_cont = batch
 
         y = self.y_encoder(gen).unsqueeze(1)
         B = gen.size(0)
@@ -583,7 +711,8 @@ class MultiSupViTSurv(pl.LightningModule):
         latent_x = self.model.decoder_embed(latent_x)
         cls_token_dec = self.model.decoder_embed(cls_token_enc)
         #split sequence into n sequences(for each image) 
-        latent_x_sep = torch.split(latent_x,split_size_or_sections=len(nn_tiles),dim=1)
+        len_single_seq = int(latent_x.size(1)/len(nn_tiles))
+        latent_x_sep = torch.split(latent_x,split_size_or_sections=len_single_seq,dim=1)
         
         
         loss = loss_Surv

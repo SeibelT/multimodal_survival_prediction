@@ -232,6 +232,7 @@ class MultiTileDataset(Dataset):
         
         self.n = n 
         self.transforms = transform
+        #assert n ==3 
     def __len__(self):
         return len(self.df_tiles)
     def __getitem__(self,idx):
@@ -241,10 +242,14 @@ class MultiTileDataset(Dataset):
         tile = self.transforms(tile)
         nn_paths = self.df_tiles.iloc[idx,5:].sample(frac=1)
         nn_tiles = [self.transforms(Image.open(tp)) for tp in nn_paths[:self.n]]
-        
+        #nn_tile1,nn_tile2,nn_tile3 = [self.transforms(Image.open(tp)) for tp in nn_paths[:self.n]]
         
         label = torch.tensor(self.df_meta.iat[slide_idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
+        
+        
+        #return (tile,nn_tile1,nn_tile2,nn_tile3, self.genomics_tensor[slide_idx], censorship, label,label_cont)
         return ([tile]+nn_tiles, self.genomics_tensor[slide_idx], censorship, label,label_cont)
+        
         

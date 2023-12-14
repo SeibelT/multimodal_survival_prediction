@@ -53,6 +53,7 @@ def train(world_size, train_settings, monitoring):
     if world_size>1:
         trainer = pl.Trainer(
             default_root_dir = default_root_dir, 
+            precision="16-mixed",
             devices = world_size,
             accelerator = "gpu",
             log_every_n_steps=train_settings["log_every_n_steps"],
@@ -67,6 +68,7 @@ def train(world_size, train_settings, monitoring):
     else:
         trainer = pl.Trainer(
         default_root_dir=default_root_dir, 
+        precision="16-mixed",
         accelerator="gpu",
         devices=1,
         log_every_n_steps=train_settings["log_every_n_steps"],
