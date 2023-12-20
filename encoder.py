@@ -39,7 +39,7 @@ def train(world_size, train_settings, monitoring):
     print("Modelname :",model._get_name())
     
     callbacks = [#ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
-                ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=25  ,save_top_k=-1),]
+                ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=2  ,save_top_k=-1, save_last=True),]
     callbacks.append(StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",
                                                annealing_epochs=train_settings["annealing_epochs"]))  if train_settings["stochastic_weightaveraging"] else print("No StochasticWeightAveraging")
     
@@ -48,6 +48,8 @@ def train(world_size, train_settings, monitoring):
         wandb_logger = WandbLogger(save_dir=train_settings["save_dir"], log_model="all") 
         if train_settings["monitor_weights_gradients"]:
             wandb_logger.watch(model,log_freq=20*train_settings["log_every_n_steps"],log="all")
+        else:
+            wandb_logger.watch(model,log=None,log_graph=False)
     
     #Trainer
     if world_size>1:
@@ -56,6 +58,7 @@ def train(world_size, train_settings, monitoring):
             precision="16-mixed",
             devices = world_size,
             accelerator = "gpu",
+            accumulate_grad_batches=train_settings["accumulate_grad_batches"],
             log_every_n_steps=train_settings["log_every_n_steps"],
             num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
             max_steps = train_settings["max_steps"],

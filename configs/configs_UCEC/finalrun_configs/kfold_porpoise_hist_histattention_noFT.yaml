@@ -1,0 +1,49 @@
+project: ucec_parametersearch
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_last
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    value : 0.4351
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 2e-4
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [Porpoise,hist,hist_attention]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.5
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/full_5foldsplit
+  dim_hist_and_feature_path:
+    values: [[2048,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-features/resnet50_features/pt_files],[192,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-features/vitmaetiny_features/pt_files]]
+  cohort:
+   value : ucec
+  gen_augmentation :
+    value : null  
+
+  
+command:
+  - python3
+  - kfold_sweep.py
+  - "--folds=5"
