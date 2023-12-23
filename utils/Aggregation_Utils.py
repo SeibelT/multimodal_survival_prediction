@@ -154,8 +154,8 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac
         return df_train,df_test,df_val
 
 
-def KM_wandb(run,risk,c,event_cont,nbins = 30):
-    print("Start Logging KM-Estimators")
+def KM_wandb(run,risk,c,event_cont,risk_group=None,nbins = 30):
+    print("Start Logging KM-Estimators"+ (", with risk_group" if risk_group is not None else  "") )
     
     
     #thresholds
@@ -188,24 +188,26 @@ def KM_wandb(run,risk,c,event_cont,nbins = 30):
     xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cont)
     
     for thresholds_name,threshold in zip(["mean","median"],[mean,median]): 
-        #Log Rank test 
-        y_stat = np.asarray([(c,time) for c,time in zip(uncensored,event_cont)],dtype=[('name', '?'), ('field', '<i8')])
-        group_indicator = (risk<threshold).numpy().astype("bool")
-        if (sum(group_indicator)==0) or (len(group_indicator)==sum(group_indicator)):
+        stratification = risk_group or risk>=threshold 
+        
+        if (sum(stratification)==0) or sum(~stratification)==0:
             continue
+        #Log Rank test 
+        group_indicator = (stratification).numpy().astype("bool")
+        y_stat = np.asarray([(c,time) for c,time in zip(uncensored,event_cont)],dtype=[('name', '?'), ('field', '<i8')])
         chisq,pvalue = compare_survival(y_stat, group_indicator, return_stats=False)
         
+        
         #KM low
-        xlow, ylow = kaplan_meier_estimator(uncensored[risk<threshold].numpy(),
-                                    event_cont[risk<threshold])
+        xlow, ylow = kaplan_meier_estimator(uncensored[~stratification].numpy(),
+                                    event_cont[stratification])
         #KM high
-        xhigh, yhigh = kaplan_meier_estimator(uncensored[risk>=threshold].numpy(),
-                                    event_cont[risk>=threshold])
+        xhigh, yhigh = kaplan_meier_estimator(uncensored[stratification].numpy(),
+                                    event_cont[stratification])
         
         
         
-        
-        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(risk<threshold)}")+do_table(xhigh,yhigh,f"high risk group {sum(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
+        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(~stratification)}")+do_table(xhigh,yhigh,f"high risk group {sum(stratification)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
                         columns=["time","Survival Probability","Group"],)
 
         field_KM = {"x":"time","y":"Survival Probability","groupKeys":"Group"}
