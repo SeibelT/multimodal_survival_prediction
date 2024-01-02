@@ -188,7 +188,7 @@ def KM_wandb(run,risk,c,event_cont,risk_group=None,nbins = 30):
     xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cont)
     
     for thresholds_name,threshold in zip(["mean","median"],[mean,median]): 
-        stratification = risk_group or risk>=threshold 
+        stratification = risk_group if risk_group is not None else risk>=threshold
         
         if (sum(stratification)==0) or sum(~stratification)==0:
             continue
@@ -200,7 +200,7 @@ def KM_wandb(run,risk,c,event_cont,risk_group=None,nbins = 30):
         
         #KM low
         xlow, ylow = kaplan_meier_estimator(uncensored[~stratification].numpy(),
-                                    event_cont[stratification])
+                                    event_cont[~stratification])
         #KM high
         xhigh, yhigh = kaplan_meier_estimator(uncensored[stratification].numpy(),
                                     event_cont[stratification])

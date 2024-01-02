@@ -15,6 +15,7 @@ from datasets.Tile_DS import *
 from utils.Encoder_Utils import create_feature_ds
 
 def train(world_size, train_settings, monitoring):
+    print("Initialize Training")
     assert os.path.exists(train_settings["save_dir"]), "save_dir does not exist!"
     assert os.path.exists(train_settings["default_root_dir"]),"save_dir does not exist!"
     
@@ -39,7 +40,7 @@ def train(world_size, train_settings, monitoring):
     print("Modelname :",model._get_name())
     
     callbacks = [#ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=train_settings["max_epochs"]//4 if train_settings["max_epochs"]>10 else 1 ,save_top_k=-1)],
-                ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=2  ,save_top_k=-1, save_last=True),]
+                ModelCheckpoint(dirpath=default_root_dir,every_n_epochs=5  ,save_top_k=-1, save_last=True),]
     callbacks.append(StochasticWeightAveraging(swa_lrs=1e-2,annealing_strategy="cos",
                                                annealing_epochs=train_settings["annealing_epochs"]))  if train_settings["stochastic_weightaveraging"] else print("No StochasticWeightAveraging")
     
@@ -56,17 +57,17 @@ def train(world_size, train_settings, monitoring):
         trainer = pl.Trainer(
             default_root_dir = default_root_dir, 
             precision="16-mixed",
-            devices = world_size,
             accelerator = "gpu",
+            devices = world_size,
             accumulate_grad_batches=train_settings["accumulate_grad_batches"],
             log_every_n_steps=train_settings["log_every_n_steps"],
-            num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
             max_steps = train_settings["max_steps"],
             profiler = train_settings["profiler"],
-            strategy = "ddp",#"ddp_find_unused_parameters_true"
             logger = wandb_logger if monitoring else False,
             max_epochs = train_settings["max_epochs"],
             callbacks = callbacks,
+            num_nodes = int(os.environ['SLURM_JOB_NUM_NODES']),
+            strategy = "ddp",#"ddp_find_unused_parameters_true",
                             )
     else:
         trainer = pl.Trainer(
@@ -74,6 +75,7 @@ def train(world_size, train_settings, monitoring):
         precision="16-mixed",
         accelerator="gpu",
         devices=1,
+        accumulate_grad_batches=train_settings["accumulate_grad_batches"],
         log_every_n_steps=train_settings["log_every_n_steps"],
         max_steps=train_settings["max_steps"],
         profiler=train_settings["profiler"],

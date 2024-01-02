@@ -10,3 +10,5 @@ torchmetrics
 h5py
 wandb
 scikit-survival
+pytorch_lightning
+timm

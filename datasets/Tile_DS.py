@@ -99,7 +99,7 @@ class TileDataset(Dataset):
         df[df["traintest"]==(0 if trainmode=="train" else 1 if trainmode=="test" else 2)]
         
             
-        self.genomics_tensor = torch.Tensor(df[df.keys()[11:]].to_numpy()).to(torch.float32) # 11 is hardcoded for this cohorts, might differ for other cohorts.
+        self.genomics_tensor = df[df.keys()[11:]].to_numpy() # 11 is hardcoded for this cohorts, might differ for other cohorts.
         self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]  
         
         # Tile Data Frame
@@ -125,7 +125,8 @@ class TileDataset(Dataset):
         label = torch.tensor(self.df_meta.iat[slide_idx, 1]).type(torch.int64)
         censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
-        return (tile, self.genomics_tensor[slide_idx], censorship, label,label_cont)
+        genomics = torch.Tensor(self.genomics_tensor[slide_idx]).to(torch.float32)
+        return (tile, self.genomics, censorship, label,label_cont)
         
 class Patient_Tileset(Dataset):
     def __init__(self,df_tiles_path,gen_vec,transform):
@@ -138,7 +139,8 @@ class Patient_Tileset(Dataset):
     def __getitem__(self,idx):
         path = self.df_tiles_path.iat[idx]
         tile = self.transform(Image.open(path))
-        return (tile,self.gen_vec)
+        genomics = torch.tensor(self.gen_vec)
+        return (tile,genomics)
         
         
     

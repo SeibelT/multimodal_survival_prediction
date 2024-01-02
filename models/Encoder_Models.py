@@ -618,33 +618,9 @@ class MultiSupViTSurv(pl.LightningModule):
         
         loss_MAE = self.model.forward_loss(nn_tiles.reshape(latent_x.size(0),3,224,224), latent_x, masks)
         self.log(f"train_MAEloss", loss_MAE.detach().item(),on_epoch=False)
-        print(f"RAM",psutil.virtual_memory().percent)
-        #####debug
-        
         
         return loss_Surv + loss_MAE
-        ############
         
-        opt = self.optimizers()
-        N = 1
-        # scale losses by 1/N (for N batches of gradient accumulation)
-        loss = (loss_Surv+4*loss_MAE) / N
-        self.manual_backward(loss)
-
-        # accumulate gradients of N batches
-        if (batch_idx + 1) % N == 0:
-            opt.step()
-            opt.zero_grad(set_to_none=True)
-            del batch,nn_tiles,x_lin,image_function_outputs,x_enc, masks, ids_restore_list,latent_x,loss_MAE,loss_Surv
-            del blk,cls_token,cls_token_dec,cls_token_enc,cls_tokens,conc_latent,gen,latent_y,loss,mask_tokens,y,surv_logits,label,censorship
-            gc.collect()
-            #############
-            #############
-            #############
-        
-        
-        
-    
         
     def evaluate(self, batch, stage=None):
         hist_tile,gen, censorship, label,label_cont = batch

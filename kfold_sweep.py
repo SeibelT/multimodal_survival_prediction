@@ -16,7 +16,7 @@ Worker = collections.namedtuple("Worker", ("queue", "process"))
 WorkerInitData = collections.namedtuple(
     "WorkerInitData", ("num", "sweep_id", "sweep_run_name", "config","n_folds")
 )
-WorkerDoneData = collections.namedtuple("WorkerDoneData", ["val_c_all","risk_fold","c_fold","l_con_fold"])
+WorkerDoneData = collections.namedtuple("WorkerDoneData", ["val_c_all","risk_fold","c_fold","l_con_fold","risk_group_fold"])
 
 
 def dropmissing(df,name,feature_path):
@@ -137,13 +137,13 @@ def train(sweep_q, worker_q):
     
     #run trainer
     if modality in ["Porpoise","PrePorpoise","PrePorpoise_meanagg_attmil","PrePorpoise_meanagg"]:
-        c_vals,risk_fold,c_fold,l_con_fold = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        c_vals,risk_fold,c_fold,l_con_fold,risk_group_fold = MM_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality,
                     )
         
     elif modality in ["gen","hist","hist_attention"]:
-        c_vals,risk_fold,c_fold,l_con_fold = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
+        c_vals,risk_fold,c_fold,l_con_fold,risk_group_fold = Uni_Trainer_sweep(run,model,optimizer,criterion,training_dataloader,
                     val_dataloader,bins,epochs,device,storepath,run_name,
                     l1_lambda,modality=modality
                     )
@@ -152,7 +152,7 @@ def train(sweep_q, worker_q):
     run.log(dict(val_c_all=c_vals.numpy()))
     wandb.join()
     
-    sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),risk_fold=risk_fold.to(torch.float16).numpy(),c_fold=c_fold.to(torch.int16).numpy(),l_con_fold=l_con_fold.to(torch.float16).numpy()))
+    sweep_q.put(WorkerDoneData(val_c_all=c_vals.numpy(),risk_fold=risk_fold.to(torch.float16).numpy(),c_fold=c_fold.to(torch.int16).numpy(),l_con_fold=l_con_fold.to(torch.float16).numpy(),risk_group_fold=risk_group_fold.to(torch.int16).numpy()))
     
 
 
@@ -178,7 +178,7 @@ def main(num_folds):
     sweep_run.save()
     sweep_run_name = sweep_run.name or sweep_run.id or "unknown"
 
-    metrics,risk_all,c_all,l_con_all = [],[],[],[]
+    metrics,risk_all,c_all,l_con_all,risk_group_all = [],[],[],[],[]
     for num in range(num_folds):
         worker = workers[num]
         # start worker
@@ -200,9 +200,9 @@ def main(num_folds):
         c_all.append(torch.tensor(result.c_fold))
         l_con_all.append(torch.tensor(result.l_con_fold))
         risk_all.append(torch.tensor(result.risk_fold,dtype=torch.float64))
-        
+        risk_group_all.append(torch.tensor(result.risk_group_fold,dtype=torch.bool))
     metrics_mean = np.mean(np.asarray(metrics),axis=0)
-    KM_total = KM_wandb(sweep_run,torch.cat(risk_all),torch.cat(c_all),torch.cat(l_con_all))
+    KM_total = KM_wandb(sweep_run,torch.cat(risk_all),torch.cat(c_all),torch.cat(l_con_all),risk_group=torch.cat(risk_group_all))
     
     sweep_run.log(dict(c_index_max=metrics_mean.max(),c_index_last=metrics_mean[-1],c_index_epoch=np.argmax(metrics_mean),KM_total=KM_total))
     wandb.join()

@@ -9,7 +9,7 @@ import pandas as pd
 from torchvision import transforms
 import h5py
 from datasets.Tile_DS import Patient_Tileset
-
+import numpy as np 
 
 def c_index(logits_all,c_all,l_all):
     """
@@ -121,7 +121,7 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
     #add coords to all tile paths df
     df_tile_paths["coords"] = df_tile_paths.tilepath.apply(lambda x: list(map(int,x.split("(")[-1].split(")")[0].split(","))))
     #create genomics tensor 
-    genomics_tensor = torch.Tensor(df_trainset[df_trainset.keys()[11:]].to_numpy()).to(torch.float32)
+    genomics_tensor = df_trainset[df_trainset.keys()[11:]].to_numpy()
 
     for idx,slide_name in enumerate(df_trainset["slide_id"]):
         
@@ -139,7 +139,7 @@ def create_feature_ds(save_path,new_ds_name,model,transform,df_tile_slide_path,d
             continue
         
         coords_tensor = torch.tensor(list(df_tiles["coords"])).to(torch.int64)
-        gen_vec = genomics_tensor[idx] if gen else torch.rand(size=(0,192))
+        gen_vec = genomics_tensor[idx] if gen else np.random.rand(0,192) #torch.rand(size=(0,192))
         #dataloader for ith patient
         dataload_i = DataLoader(Patient_Tileset(df_tiles["tilepath"],gen_vec,transform), batch_size=batch_size,num_workers=num_workers,pin_memory=pin_memory)
         #encode features
