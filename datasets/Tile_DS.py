@@ -126,7 +126,7 @@ class TileDataset(Dataset):
         censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
         label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
         genomics = torch.Tensor(self.genomics_tensor[slide_idx]).to(torch.float32)
-        return (tile, self.genomics, censorship, label,label_cont)
+        return (tile, genomics, censorship, label,label_cont)
         
 class Patient_Tileset(Dataset):
     def __init__(self,df_tiles_path,gen_vec,transform):
@@ -139,7 +139,7 @@ class Patient_Tileset(Dataset):
     def __getitem__(self,idx):
         path = self.df_tiles_path.iat[idx]
         tile = self.transform(Image.open(path))
-        genomics = torch.tensor(self.gen_vec)
+        genomics = torch.tensor(self.gen_vec,dtype=torch.float32)
         return (tile,genomics)
         
         

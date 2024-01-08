@@ -686,6 +686,7 @@ class MultiSupViTSurv(pl.LightningModule):
         self.optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.lr,
+            weight_decay=1e-5
             )
         
         return {"optimizer": self.optimizer}

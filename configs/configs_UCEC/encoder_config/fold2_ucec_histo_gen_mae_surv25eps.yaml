@@ -15,13 +15,14 @@ train_settings:
         do_test : true
         default_root_dir : /home/seibel/ucec5fold/fold2_ucec_histo_gen_mae_surv
         max_steps : -1
-        monitor_weights_gradients : true
+        monitor_weights_gradients : false
         profiler : #simple
         log_every_n_steps : 100
         tune : false
         accumulate_grad_batches : 1 
         model_params : 
                 lr : 0.0001
+                d_gen : 9072
                 nbins : 4
                 alpha : 0.25
                 encode_gen : true
@@ -41,9 +42,9 @@ train_settings:
                  
         
 encode_settings:
-        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/5fold-hist_gen_mae_surv25/00
+        save_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/5fold-hist_gen_mae_surv25/02
         new_ds_name : pt_files
-        mycheckpnt : /home/seibel/5fold_encoding/fold0_brca_histo_gen_mae_surv/epoch=24-step=52525.ckpt
+        mycheckpnt : /home/seibel/ucec5fold/fold2_ucec_histo_gen_mae_surv/epoch=24-step=XXXX.ckpt
         encode_gen : true
         batch_size : 256
         num_workers : 6
@@ -53,12 +54,12 @@ encode_settings:
                 lr : 0.0001
                 nbins : 4
                 alpha : 0.25
-                
+                d_gen : 9072
                 aggregation_func : Mean_Aggregation
-                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+                ckpt_path : /globalwork/seibel/backup/backup_modelweights/mae_tiny_400e.pth.tar
                 p_dropout_head : 0
-        df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
-        df_data_paths : [/nodes/bevog/work4/seibel/data/welldistributed5folds/00/tcga_brca__4bins_trainsplit.csv,/nodes/bevog/work4/seibel/data/welldistributed5folds/00/tcga_brca__4bins_testsplit.csv]
+        df_tile_slide_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/tile_encoder_df/df-TCGA-UCEC-TIILES-NORM.csv
+        df_data_paths : [/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/02/tcga_ucec__4bins_trainsplit.csv,/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/02/tcga_ucec__4bins_testsplit.csv]
         cntd : true
 
 

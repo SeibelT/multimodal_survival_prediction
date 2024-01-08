@@ -16,6 +16,9 @@ from utils.Encoder_Utils import create_feature_ds
 
 def train(world_size, train_settings, monitoring):
     print("Initialize Training")
+    #torch.set_float32_matmul_precision("medium")
+    grad_clip = train_settings["gradient_clipping"] if "gradient_clipping" in train_settings.keys() else 0
+        
     assert os.path.exists(train_settings["save_dir"]), "save_dir does not exist!"
     assert os.path.exists(train_settings["default_root_dir"]),"save_dir does not exist!"
     
@@ -56,6 +59,7 @@ def train(world_size, train_settings, monitoring):
     if world_size>1:
         trainer = pl.Trainer(
             default_root_dir = default_root_dir, 
+            gradient_clip_val=grad_clip,
             precision="16-mixed",
             accelerator = "gpu",
             devices = world_size,
@@ -72,6 +76,7 @@ def train(world_size, train_settings, monitoring):
     else:
         trainer = pl.Trainer(
         default_root_dir=default_root_dir, 
+        gradient_clip_val=grad_clip,
         precision="16-mixed",
         accelerator="gpu",
         devices=1,

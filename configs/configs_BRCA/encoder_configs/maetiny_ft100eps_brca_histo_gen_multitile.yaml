@@ -3,23 +3,24 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : maetiny_ft100eps_brca_histo_gen_multitile9
+        name : maetiny_ft100eps_brca_histo_gen_multitile92
 train_settings:
         ffcv : false
+        gradient_clipping : 4
         model_name : MultiSupViTSurv
-        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile
-        max_epochs : 100
+        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile2
+        max_epochs : 26
         stochastic_weightaveraging : true
         annealing_epochs : 110
         checkpoint_path : 
         do_test : true
-        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile
+        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile2
         max_steps : -1
         monitor_weights_gradients : true
-        profiler : #simple
+        profiler : #simple 
         log_every_n_steps : 100
         tune : false
-        accumulate_grad_batches : 4
+        accumulate_grad_batches : 1
         model_params :
                 lr : 0.0001
                 nbins : 4
@@ -40,7 +41,7 @@ train_settings:
                 tile_df_path : /globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
                 tiles_path : /globalwork/seibel/TCGA-BRCA-TILES-NORM/
                 batch_size : 128
-                num_workers : 6
+                num_workers : 3
                 pin_memory : true
                 
                 

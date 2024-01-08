@@ -34,9 +34,9 @@ parameters:
   storepath:
     value: /work4/seibel/data/results
   csv_path:
-    value: /nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-dataframes/full_5foldsplit
+    value: /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit
   dim_hist_and_feature_path:
-    value: [2048,/nodes/bevog/work3/seibel/data/TCGA-UCEC/TCGA-UCEC-features/resnet50_features/pt_files]
+    value: [2048,/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/resnet50_features/pt_files]
   cohort:
    value : ucec
   gen_augmentation :
