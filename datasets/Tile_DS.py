@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader,Dataset
 import pytorch_lightning as pl
 import random
 import sys
+from zipfile import ZipFile
+import io
 
 class TileModule(pl.LightningDataModule):
     def __init__(self,df_path_train,df_path_test,tile_df_path,batch_size,num_workers,pin_memory,df_path_val=None,histonly=False,add_i1k=False,multitile=False,tiles_path=None,n_neighbours=None,tile_df_path_multi=None,**kwargs):
@@ -265,4 +267,121 @@ class MultiTileDataset(Dataset):
         return (tiles,genomics , censorship, label)
 
 
+
+
+class Multitile_ZIPModule(pl.LightningDataModule):
+    def __init__(self,df_path_train,df_path_test,tile_df_path,batch_size,num_workers,pin_memory,df_path_val=None,histonly=False,add_i1k=False,multitile=False,tiles_path=None,n_neighbours=None,tile_df_path_multi=None,**kwargs):
+        super().__init__()
+        self.multitile = multitile
+        if multitile:
+            self.n = n_neighbours 
+            self.tile_df_path_multi = tile_df_path_multi
+            self.tiles_path = tiles_path
+            
+        self.df_path_train = df_path_train
+        self.df_path_test = df_path_test
+        self.df_path_val = df_path_val
+        self.tile_df_path=tile_df_path
+        self.num_workers = num_workers
+        self.batch_size = batch_size 
+        self.pin_memory = pin_memory
+        self.histonly = histonly
+        self.add_i1k = add_i1k
+        
+        self.do_validation = df_path_val is not None
+        
+            
+        self.transform_train =  transforms.Compose([transforms.CenterCrop(224),
+                                                    transforms.ToTensor(),
+                                                    transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
+                                                    transforms.RandomHorizontalFlip(p=0.5),
+                                                    transforms.RandomVerticalFlip(p=0.5)
+                                                    ]
+                                                   )
+        self.transform_eval =  transforms.Compose([transforms.CenterCrop(224),
+                                                   transforms.ToTensor(),
+                                                    transforms.Normalize(mean=(0.5,0.5,0.5),std=(0.5,0.5,0.5)),
+                                                    ]
+                                                   )
+        
+    def setup(self, stage):
+        if self.histonly:
+            self.train_set = Tile_only_joined_Dataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train,add_i1k=self.add_i1k)
+            self.test_set = Tile_only_joined_Dataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval,add_i1k=False)
+            if self.do_validation:
+                self.val_set = Tile_only_joined_Dataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval,add_i1k=False)
+            
+        else:
+            self.test_set = TileDataset(df_path=self.df_path_test,tile_df_path=self.tile_df_path,trainmode = "test",transform=self.transform_eval)
+            if self.do_validation:
+                self.val_set = TileDataset(df_path=self.df_path_val,tile_df_path=self.tile_df_path,trainmode = "val",transform=self.transform_eval)
+            if not self.multitile:
+                self.train_set = TileDataset(df_path=self.df_path_train,tile_df_path=self.tile_df_path,trainmode = "train",transform=self.transform_train)
+            else:
+                
+                self.train_set = MultiTileZIPDataset(n = self.n,df_path=self.df_path_train,tile_df_path=self.tile_df_path_multi,tiles_path=self.tiles_path,trainmode = "train",transform=self.transform_train)
+
+class MultiTileZIPDataset(Dataset):
+    def __init__(self,df_path,tile_df_path,tiles_path,n,trainmode,transform):
+        """Custom Dataset for Feature Extractor Finetuning for Survival Analysis for multiple tiles during training
+
+        Args:
+            df_path (str): Path to Dataframe which contains meta data and genomic data 
+            tilepath (str): path to folder which contains subfolders with tiles(subfolder names must ne slide id)
+            ext (str): file extension of tiles(eg jpg or png)
+            trainmode (Bool): To generate train set or test set 
+        """
+        super(MultiTileDataset,self).__init__()
+        #Genomic Tensor and Meta Dataframe
+        self.feature_path = tiles_path #path to csv. 
+        df = pd.read_csv(df_path) 
+        
+        assert trainmode in ["train","test","val"], "Dataset mode not known"
+        df[df["traintest"]==(0 if trainmode=="train" else 1 if trainmode=="test" else 2)]
+        
+            
+        self.genomics_tensor = df[df.keys()[11:]].to_numpy() # 11 is hardcoded for this cohort, might differ for other cohorts.
+        self.df_meta = df[["slide_id","survival_months_discretized","censorship","survival_months"]]  
+        
+        # Tile Data Frame
+        df_tiles = pd.read_pickle(tile_df_path)
+        
+        # add slide_id to index mapping
+        diction= dict([(name,idx) for idx,name in enumerate(self.df_meta["slide_id"]) ]) #since slide_id is unique 
+        df_tiles.insert(1,"slideid_idx",df_tiles["slide_id"].map(diction))
+        df_tiles = df_tiles.dropna()
+        df_tiles.slideid_idx = df_tiles.slideid_idx.astype(int)
+        self.df_tiles = df_tiles
+        
+        self.n = n 
+        self.transforms = transform
+        #assert n ==3 
+    def __len__(self):
+        return len(self.df_tiles)
+    
+    
+    def __getitem__(self,idx):
+        slide_id,slide_idx = self.df_tiles.iat[idx,0],self.df_tiles.iat[idx,1]
+        main_tile = self.df_tiles.iat[idx,2]
+        
+        nn_paths = [main_tile] + list(self.df_tiles.iloc[idx,3:].sample(n=self.n))
+        nn_paths = [os.path.join(slide_id.replace(".svs",""),path) for path in nn_paths]
+        tiles = []
+        with ZipFile(self.feature_path, 'r') as zip_ref:
+                    for path in nn_paths:
+                        with zip_ref.open(path) as file:
+                            image = file.read()
+                            image = self.transform(Image.open(io.BytesIO(image)))
+                            tiles.append(image)
+                            
+        
+        tiles = torch.stack(tiles,dim=0)
+        
+        label = torch.tensor(self.df_meta.iat[slide_idx, 1]).type(torch.int64)
+        censorship = torch.tensor(self.df_meta.iat[slide_idx, 2]).type(torch.int64)
+        #label_cont = torch.tensor(self.df_meta.iat[slide_idx,3]).type(torch.float32)
+        genomics = torch.Tensor(self.genomics_tensor[slide_idx]).to(torch.float32)
+        
+        
+        return (tiles,genomics , censorship, label)
 

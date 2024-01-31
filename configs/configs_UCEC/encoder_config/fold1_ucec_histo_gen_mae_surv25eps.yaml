@@ -44,7 +44,7 @@ train_settings:
 encode_settings:
         save_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/5fold-hist_gen_mae_surv25/01
         new_ds_name : pt_files
-        mycheckpnt : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv/epoch=24-step=XXXX.ckpt
+        mycheckpnt : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv/epoch=24-step=87400.ckpt
         encode_gen : true
         batch_size : 256
         num_workers : 6

@@ -210,7 +210,7 @@ def MM_Trainer_sweep(run,model,optimizer,criterion,trainloader,
                             "test/c_index":c_index_test,
                         }
             run.log(wandbdict_test)
-            return None,km_values_test[0],km_values_test[1],km_values_test[2],km_values_test[3]
+            return km_values_test[0],km_values_test[1],km_values_test[2],km_values_test[3]
             
     else:
         if testloader is None:

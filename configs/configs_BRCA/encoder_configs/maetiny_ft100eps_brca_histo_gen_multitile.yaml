@@ -3,30 +3,30 @@ wandb_settings :
         monitoring : true
         entity : tobias-seibel
         project : Feature_Encoder
-        name : maetiny_ft100eps_brca_histo_gen_multitile92
+        name : maetiny_ft100eps_brca_histo_gen_multitile_debugged
 train_settings:
         ffcv : false
-        gradient_clipping : 4
+        gradient_clipping : 1
         model_name : MultiSupViTSurv
-        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile2
+        save_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile3
         max_epochs : 26
         stochastic_weightaveraging : true
         annealing_epochs : 110
         checkpoint_path : 
         do_test : true
-        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile2
+        default_root_dir : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile3
         max_steps : -1
         monitor_weights_gradients : true
         profiler : #simple 
         log_every_n_steps : 100
         tune : false
-        accumulate_grad_batches : 1
+        accumulate_grad_batches : 4
         model_params :
                 lr : 0.0001
                 nbins : 4
                 n_neighbours : 3
                 alpha : 0.25
-                encode_gen : true
+                encode_gen : truemkdir 
                 aggregation_func : Mean_Aggregation
                 ckpt_path : /globalwork/seibel/backup/backup_modelweights/mae_tiny_400e.pth.tar
                 p_dropout_head : 0.7
@@ -41,30 +41,32 @@ train_settings:
                 tile_df_path : /globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
                 tiles_path : /globalwork/seibel/TCGA-BRCA-TILES-NORM/
                 batch_size : 128
-                num_workers : 3
+                num_workers : 4
                 pin_memory : true
                 
                 
                  
         
 encode_settings:
-        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/maetiny_ft25eps_brca_histo_gen_dropout70p
+        save_path : /home/seibel/maetiny_ft100eps_brca_histo_gen_multitile3
         new_ds_name : pt_files
-        mycheckpnt : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p/epoch=24-step=45225.ckpt
+        mycheckpnt : /home/seibel/maetiny_ft100eps_brca_histo_gen_dropout70p/last.ckpt
         encode_gen : true
-        batch_size : 256
+        batch_size : 128
         num_workers : 3
         pin_memory : true
-        model_name : SupViTSurv
+        model_name : MultiSupViTSurv
         model_params : 
                 lr : 0.0001
                 nbins : 4
+                n_neighbours : 3
                 alpha : 0.25
+                encode_gen : truemkdir 
                 aggregation_func : Mean_Aggregation
-                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+                ckpt_path : /globalwork/seibel/backup/backup_modelweights/mae_tiny_400e.pth.tar
                 p_dropout_head : 0
-        df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
-        df_data_paths : [/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv]
+        df_tile_slide_path : /globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
+        df_data_paths : [/globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv,/globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv,/globalwork/seibel/backup/backup_frames_features/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv]
         cntd : true
 
 

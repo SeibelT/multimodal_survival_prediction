@@ -1,16 +1,16 @@
-project: final_result
+project: final_result_5foldUCEC
 entity: tobias-seibel
 method: grid
 metric:
   goal: maximize
-  name: valid/c_index
+  name: test/c_index
 parameters:
   num_workers :
     value :  2
   epochs:
     value: 20
   alpha:
-    value: 0.00275
+    value: 0.4351
   l1_lambda:
     value: 1e-5
   d_gen_out:
@@ -18,31 +18,35 @@ parameters:
   d_hidden:
     value: 256
   learningrate:
-    value: 1e-6
+    value: 2e-4
   activation:
     value: SELU
   bins:
     value: 4
   modality:
-    values: [hist,PrePorpoise_meanagg,PrePorpoise_meanagg_attmil]
+    values: [hist,hist_attention]
   batchsize:
     value: 1
   datapath:
-    value: /nodes/bevog/work4/seibel/data
+    value: /home/seibel/ucec5fold/data
   dropout:
     value: 0.5
   storepath:
-    value: /work4/seibel/data/results
+    value: /home/seibel/ucec5fold/data
+  do_test:
+    value: true
+  do_val:
+    value: false
   csv_path:
-    value: /nodes/bevog/work4/seibel/data/tile_encoder_dataframes
+    value: /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/00
   dim_hist_and_feature_path:
-    value: [192,"/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/maetiny_ft100eps_brca_histo_gen_dropout70p/pt_files"]
+    value: [192,"/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/5fold-hist_gen_mae_surv25/00/pt_files"]
   repeating:
-    values: [1,2,3,4,5,6,7,8,9,10]
+    value: 1
   kfold:
     values: [null]
   cohort:
-   value : brca
+    value : ucec
   
 command:
   - python3

@@ -46,4 +46,4 @@ parameters:
   
 command:
   - python3
-  - aggregation2.py
+  - aggregation.py

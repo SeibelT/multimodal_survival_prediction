@@ -553,6 +553,7 @@ class MultiSupViTSurv(pl.LightningModule):
         conc_latent = torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
         surv_logits = self.classification_head(conc_latent)
         #MAE decoder
+        latent_x = torch.cat([cls_token_enc, latent_x], dim=1)
         pred = self.model.forward_decoder(latent_x, ids_restore)  # [N, L, p*p*3]
         conc_latent = self.aggregation(latent_x,latent_y)
         surv_logits = self.classification_head(conc_latent)
@@ -588,13 +589,16 @@ class MultiSupViTSurv(pl.LightningModule):
         #separate y_encoding_images
         cls_token_enc,latent_x,latent_y = torch.split(x_enc,split_size_or_sections=[1,x_enc.size(1)-2,1],dim=1)
         #surv loss 
-        conc_latent = torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
+        
+        
+        conc_latent = latent_y  #torch.mean(torch.cat((latent_x,latent_y),dim=1),dim=1)
         surv_logits = self.classification_head(conc_latent)
         loss_Surv = self.criterion(surv_logits,censorship,label)
         self.log("train_Survloss",loss_Surv.detach().item(),on_epoch=False)
+        #######
         
         #decode
-        latent_x = self.model.decoder_embed(latent_x)#ok
+        latent_x = self.model.decoder_embed(latent_x)
         cls_token_dec = self.model.decoder_embed(cls_token_enc).repeat(1,self.n_tiles,1).reshape(cls_token_enc.size(0)*self.n_tiles,1,latent_x.size(2))# B,1,d -> B,4,D -> B*4,1,d
         #stack all images into batch 
         latent_x=latent_x.reshape(latent_x.size(0)*self.n_tiles,int(latent_x.size(1)//self.n_tiles),latent_x.size(2))#B,4*l_seq,d -> B*4,l_seq,d
@@ -619,7 +623,7 @@ class MultiSupViTSurv(pl.LightningModule):
         loss_MAE = self.model.forward_loss(nn_tiles.reshape(latent_x.size(0),3,224,224), latent_x, masks)
         self.log(f"train_MAEloss", loss_MAE.detach().item(),on_epoch=False)
         
-        return loss_Surv + loss_MAE
+        return loss_MAE + loss_Surv  
         
         
     def evaluate(self, batch, stage=None):
