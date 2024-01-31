@@ -1,3 +1,4 @@
+import os
 import numpy as np 
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -6,6 +7,7 @@ from torch import nn
 from sksurv.metrics import concordance_index_censored,cumulative_dynamic_auc
 import wandb
 from sksurv.nonparametric import kaplan_meier_estimator
+from sksurv.compare import compare_survival
 
 class Survival_Loss(nn.Module):
     def __init__(self,alpha,eps = 1e-7):
@@ -59,42 +61,44 @@ class Survival_Loss(nn.Module):
         
         return L_z + (1-self.alpha)*L_censored
 
-def c_index(out_all,c_all,l_all): # TODO to utils 
+def c_index(risk_all,c_all,l_all): 
     """
     Variables
-    out_all : FloatTensor must be of shape = (N,4)  predicted logits of model 
+    risk_all : FloatTensor must be of shape = (N,)  predicted logits of model 
     c_all : IntTensor must be of shape = (N,) 
     l_all IntTensor must be of shape = (N,)
 
     Outputs the c-index score 
     """
-    with torch.no_grad():  # TODO c-index not working yet 
-        #risk
-        h = nn.Sigmoid()(out_all)
-        S = torch.cumprod(1-h,dim = -1)
-        risk = -S.sum(dim=1) ## TODO why is it not 1-S ???
+    with torch.no_grad(): 
         notc = (1-c_all).numpy().astype(bool)
         try:
-            c_index = concordance_index_censored(notc,l_all.cpu(),risk)
+            c_index = concordance_index_censored(notc,l_all.cpu(),risk_all.detach())
             #print(c_index)
+            return c_index[0]
         except:
             print("C index problems")
-        return c_index[0]
+            return torch.nan
+        
     
+def risk_func(out):
+    h = nn.Sigmoid()(out)
+    S = torch.cumprod(1-h,dim = -1)
+    risk = -S.sum(dim=1)
+    return risk
 
 
-
-def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
-    #clusters data into k folds stratified by patients,
+def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=5,frac_train=None,frac_val=None):
+    #splits data into k folds stratified by patients,
     #bins survivaltime and , normalizes/transforms gen features into tensor  
     #returns metadata_csv[index,patientname,path2WSI_bag.pth, survival_bin,survival_time, censorship, k_fold_cluster,], feature tensor
     #fracs (eg:0.8)
     df = pd.read_csv(df_path,compression='zip')
-
+    
     # get time bins 
     df_uncensored = (df[df["censorship"]==0]).drop_duplicates(["case_id"])
     _,bins = pd.qcut(df_uncensored['survival_months'],q = n_bins,retbins=True)  # distribute censored survival months into quartiles
-
+    
     # adapt time bins 
     bins[0] = 0 
     bins[-1] = np.inf
@@ -103,7 +107,7 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
     df.insert(6,"survival_months_discretized",  pd.cut(df["survival_months"],
                                                                bins=bins, 
                                                                labels=labels)) # insert binned survival month
-     
+    
     
     if split=="kfold":
         diction = dict([(name,idx) for idx,name in enumerate(df["case_id"].unique()) ])
@@ -115,39 +119,47 @@ def prepare_csv(df_path,split,n_bins=4,save = True,kfolds=None,frac=None):
         df[df.keys()[11:]] = scaled_genomics
 
         if save:
-            savename = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_kfold.csv")
+            savename = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_{kfolds}fold.csv")
             df.to_csv(savename,index=False)
         return df 
 
-
-    elif split=="traintest":
-        train_len = int(len(df)*frac)
-        diction = dict([(name,1) if idx<train_len else (name,0) for idx,name in enumerate(df["case_id"].unique())])
+    
+    elif split=="traintestval":
+        
+        cases = len(df["case_id"].unique())
+        train_len = int(cases*frac_train)
+        val_len = int(cases*frac_val)
+        test_len = cases-train_len-val_len
+        
+        diction = dict([(name,0) if idx<train_len else (name,1) if idx<train_len+test_len  else (name,2) for idx,name in enumerate(df["case_id"].unique())])
         df.insert(3,"traintest",df["case_id"].map(diction)) # insert traintestlabel 
         
         genomics = df[df.keys()[11:]]
         scaler = StandardScaler()
         scaled_genomics = scaler.fit_transform(genomics)
         df[df.keys()[11:]] = scaled_genomics
-
-        df_train = df[df["traintest"]==1]
-        df_test = df[df["traintest"]==0]
+        
+        df_train = df[df["traintest"]==0]
+        df_test = df[df["traintest"]==1]
+        df_val = df[df["traintest"]==2]
         if save:
-            savename_train = df_path.replace("all_clean.csv.zip",f"_trainsplit.csv")
+            savename_train = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_trainsplit.csv")
             df_train.to_csv(savename_train,index=False)
             
-            savename_test = df_path.replace("all_clean.csv.zip",f"_testsplit.csv")
+            savename_test = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_testsplit.csv")
             df_test.to_csv(savename_test,index=False)
-        return df_train,df_test 
+            
+            savename_val = df_path.replace("all_clean.csv.zip",f"_{n_bins}bins_valsplit.csv")
+            df_val.to_csv(savename_val,index=False)
+        return df_train,df_test,df_val
 
 
-def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
-    print("Start Logging KM-Estimators")
-    risk = get_risk(out)
+def KM_wandb(run,risk,c,event_cont,risk_group=None,nbins = 30):
+    print("Start Logging KM-Estimators"+ (", with risk_group" if risk_group is not None else  "") )
+    
     
     #thresholds
-    min,max = risk.min(),risk.max()
-    thresholds = np.linspace(min,max,n_thresholds+2)[1:-1]
+    min,max,mean,median = risk.min(),risk.max(),risk.mean(),risk.median()
     
     #hist
     censored = c.type(torch.bool)
@@ -172,36 +184,44 @@ def KM_wandb(run,out,c,event_cond,n_thresholds = 4,nbins = 30):
     ###
     
     
-    
-    
     #KaplanMeier Plots
-    xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cond)
+    xfull, yfull = kaplan_meier_estimator(uncensored.numpy(), event_cont)
     
-    for idx,threshold in enumerate(thresholds): 
-        xlow, ylow = kaplan_meier_estimator(uncensored[risk<threshold].numpy(),
-                                    event_cond[risk<threshold])
-
-        xhigh, yhigh = kaplan_meier_estimator(uncensored[risk>=threshold].numpy(),
-                                    event_cond[risk>=threshold])
+    for thresholds_name,threshold in zip(["mean","median"],[mean,median]): 
+        stratification = risk_group if risk_group is not None else risk>=threshold
+        
+        if (sum(stratification)==0) or sum(~stratification)==0:
+            continue
+        #Log Rank test 
+        group_indicator = (stratification).numpy().astype("bool")
+        y_stat = np.asarray([(c,time) for c,time in zip(uncensored,event_cont)],dtype=[('name', '?'), ('field', '<i8')])
+        chisq,pvalue = compare_survival(y_stat, group_indicator, return_stats=False)
         
         
-        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(risk<threshold)}")+do_table(xhigh,yhigh,f"high risk group {sum(risk>=threshold)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
+        #KM low
+        xlow, ylow = kaplan_meier_estimator(uncensored[~stratification].numpy(),
+                                    event_cont[~stratification])
+        #KM high
+        xhigh, yhigh = kaplan_meier_estimator(uncensored[stratification].numpy(),
+                                    event_cont[stratification])
+        
+        
+        
+        table_KM = wandb.Table(data = do_table(xlow,ylow,f"low risk group {sum(~stratification)}")+do_table(xhigh,yhigh,f"high risk group {sum(stratification)}")+do_table(xfull,yfull,f"total group {len(risk)}"),
                         columns=["time","Survival Probability","Group"],)
 
         field_KM = {"x":"time","y":"Survival Probability","groupKeys":"Group"}
         custom_KM = wandb.plot_table(vega_spec_name="tobias-seibel/kaplanmeier",
                     data_table=table_KM,
                     fields = field_KM, 
-                    string_fields={"title":f"KM Risk Stratification at {round(threshold,2)}"},
+                    string_fields={"title":f"KM RS at {thresholds_name}({round(threshold.item(),2)}),Chi squared = {chisq:.2e}, pvalue = {pvalue:.2e}"},
                     )
-        run.log({f"KM_{idx}" :custom_KM})
+        
+        run.log({f"KM_{thresholds_name}" :custom_KM,f"{thresholds_name}_pvalue":pvalue,f"{thresholds_name}_statistic":chisq})
+    
+    wandb.log({"risk_min":min,"risk_max":max,"risk_mean":mean,"risk_median":median})
     print("Finished logging KM-Estimators")
     
-def get_risk(out):
-    h = nn.Sigmoid()(out)
-    S = torch.cumprod(1-h,dim = -1)
-    risk = -S.sum(dim=1)
-    return risk
 
 def stepfunc(x,y,eps=1e-4):
     #not needed anymore 
@@ -211,3 +231,12 @@ def stepfunc(x,y,eps=1e-4):
 
 def do_table(x,y,label):
     return [[x[i],y[i],label] for i in range(len(x))]
+
+
+
+def dropmissing(df,name,feature_path):
+    len_df = len(df)
+    df = df.drop(df[df["slide_id"].apply(lambda x : not os.path.exists(os.path.join(feature_path,x.replace(".svs",".h5"))))].index)
+    if len_df !=len(df):
+        print(f"Dropped {len_df-len(df)}rows in {name} dataframe")
+    return df

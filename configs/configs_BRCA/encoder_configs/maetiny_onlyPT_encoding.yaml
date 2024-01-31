@@ -1,0 +1,25 @@
+mode : train
+wandb_settings :
+        monitoring : true
+        entity : tobias-seibel
+        project : Feature_Encoder
+        name : maetiny_ft100eps_brca_histo_w_i1k
+encode_settings:
+        save_path : /nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_no_FT_features
+        new_ds_name : pt_files
+        mycheckpnt : null
+        encode_gen : false
+        batch_size : 128
+        num_workers : 3
+        pin_memory : true
+        model_name : VitTiny
+        model_params : 
+                lr : 0.01
+                nbins : 4
+                alpha : 0.1
+                ckpt_path : /nodes/bevog/work4/seibel/data/mae_tiny_400e.pth.tar
+        df_tile_slide_path : /nodes/bevog/work4/seibel/data/tile_encoder_dataframes/DF_TCGA-BRCA-TIILES-NORM.csv
+        df_data_paths : [/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_trainsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_testsplit.csv,/nodes/bevog/work4/seibel/data/tile_encoder_dataframes/tcga_brca__4bins_valsplit.csv]
+        cntd : true
+
+

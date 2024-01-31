@@ -1,0 +1,65 @@
+mode : train
+wandb_settings :
+        monitoring : true
+        entity : tobias-seibel
+        project : Feature_Encoder_5fold
+        name : fold1_ucec_histo_gen_mae_surv
+train_settings:
+        ffcv : false
+        model_name : SupViTSurv
+        save_dir : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv
+        max_epochs : 26
+        stochastic_weightaveraging : true
+        annealing_epochs : 110
+        checkpoint_path : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv/epoch=4-step=17480.ckpt
+        do_test : true
+        default_root_dir : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv
+        max_steps : -1
+        monitor_weights_gradients : false
+        profiler : #simple
+        log_every_n_steps : 100
+        tune : false
+        accumulate_grad_batches : 1 
+        model_params : 
+                lr : 0.0001
+                d_gen : 9072
+                nbins : 4
+                alpha : 0.25
+                encode_gen : true
+                aggregation_func : Mean_Aggregation
+                ckpt_path : /globalwork/seibel/backup/backup_modelweights/mae_tiny_400e.pth.tar
+                p_dropout_head : 0.7
+        datamodule :  TileModule
+        dataset_params : 
+                df_path_train : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/01/tcga_ucec__4bins_trainsplit.csv
+                df_path_test : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/01/tcga_ucec__4bins_testsplit.csv
+                tile_df_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/tile_encoder_df/df-TCGA-UCEC-TIILES-NORM.csv
+                batch_size : 512
+                num_workers : 6
+                pin_memory : true
+                
+                
+                 
+        
+encode_settings:
+        save_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/5fold-hist_gen_mae_surv25/01
+        new_ds_name : pt_files
+        mycheckpnt : /home/seibel/ucec5fold/fold1_ucec_histo_gen_mae_surv/epoch=24-step=87400.ckpt
+        encode_gen : true
+        batch_size : 256
+        num_workers : 6
+        pin_memory : true
+        model_name : SupViTSurv
+        model_params : 
+                lr : 0.0001
+                nbins : 4
+                alpha : 0.25
+                d_gen : 9072
+                aggregation_func : Mean_Aggregation
+                ckpt_path : /globalwork/seibel/backup/backup_modelweights/mae_tiny_400e.pth.tar
+                p_dropout_head : 0
+        df_tile_slide_path : /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/tile_encoder_df/df-TCGA-UCEC-TIILES-NORM.csv
+        df_data_paths : [/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/01/tcga_ucec__4bins_trainsplit.csv,/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/01/tcga_ucec__4bins_testsplit.csv]
+        cntd : true
+
+

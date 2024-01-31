@@ -1,0 +1,48 @@
+project: kfold_porpoise_vittinypt_sweep
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: c_index_last
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    values: [0.002275,0.045,0.44813] 
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    values: [256,64,8]
+  learningrate:
+    value: 2e-4
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [PrePorpoise_meanagg_attmil,PrePorpoise_meanagg]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    values: [0,0.3,0.5]
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes
+  dim_hist_and_feature_path:
+    value: [2048,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/tcga_brca_20x_features/pt_files]
+  gen_augmentation:
+    values: [null]
+  cohort:
+   value : brca
+  
+command:
+  - python3
+  - kfold_sweep.py
+  - "--folds=5"

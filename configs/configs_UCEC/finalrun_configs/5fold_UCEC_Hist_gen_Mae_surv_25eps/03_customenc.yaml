@@ -1,0 +1,53 @@
+project: final_result_5foldUCEC
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: test/c_index
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 20
+  alpha:
+    value: 0.4351
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 2e-4
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    values: [hist,hist_attention]
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.5
+  storepath:
+    value: /work4/seibel/data/results
+  do_test:
+    value: true
+  do_val:
+    value: false
+  csv_path:
+    value: /globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-dataframes/full_5foldsplit/03
+  dim_hist_and_feature_path:
+    value: [192,"/globalwork/seibel/backup/backup_UCEC/TCGA-UCEC-features/5fold-hist_gen_mae_surv25/03/pt_files"]
+  repeating:
+    value: 1
+  kfold:
+    values: [null]
+  cohort:
+    value : ucec
+  
+command:
+  - python3
+  - aggregation.py

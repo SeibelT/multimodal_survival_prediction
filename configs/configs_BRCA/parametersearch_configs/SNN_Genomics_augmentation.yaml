@@ -1,0 +1,49 @@
+project: SNN_Genomics_augmentation
+entity: tobias-seibel
+method: grid
+metric:
+  goal: maximize
+  name: valid/c_index
+parameters:
+  num_workers :
+    value :  2
+  epochs:
+    value: 90
+  alpha:
+    value: 0.002275
+  l1_lambda:
+    value: 1e-5
+  d_gen_out:
+    value: 32
+  d_hidden:
+    value: 256
+  learningrate:
+    value: 1e-6
+  activation:
+    value: SELU
+  bins:
+    value: 4
+  modality:
+    value: gen
+  batchsize:
+    value: 1
+  datapath:
+    value: /nodes/bevog/work4/seibel/data
+  dropout:
+    value: 0.5
+  storepath:
+    value: /work4/seibel/data/results
+  csv_path:
+    value: /nodes/bevog/work4/seibel/data/aggregation_kfold_dataframes/trainvalidation_4foldsplit
+  dim_hist_and_feature_path:
+    value: [384,/nodes/bevog/work4/seibel/data/TCGA-BRCA-DX-features/vit_mae_tiny_I1K_PT_TCGA_BRCA_FT_HIST_GEN_199eps_features/pt_files]
+  repeating:
+    value: null
+  gen_augmentation:
+    values: [1,0.5,0.1,0.01,0.001,0]
+  cohort:
+   value : brca
+command:
+  - python3
+  - kfold_sweep.py 
+  - "--folds=4"
